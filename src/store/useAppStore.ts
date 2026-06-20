@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, TemperatureRecord, Driver, TempStatus, CheckIn, AbnormalReport, AbnormalStatus, StageEvent, TaskStage } from '../types';
+import type { Task, TemperatureRecord, Driver, TempStatus, CheckIn, AbnormalReport, AbnormalStatus, StageEvent, TaskStage, SupplementEntry } from '../types';
 import { STAGE_ORDER, TASK_STAGE_LABELS, TEMP_STATUS_LABELS } from '../types';
 import { mockDriver, mockTasks, mockTemperatureRecords, mockAbnormalReports } from '../data/mockData';
 import { generateId, getTempStatusColor } from '../utils';
@@ -67,6 +67,23 @@ interface AppState {
     powerPhoto?: string;
     actionTaken: string;
   }) => AbnormalReport;
+  createAbnormalReportDirect: (data: {
+    taskId: string;
+    temperature: number;
+    batteryLevel: number;
+    powerConnected: boolean;
+    dispatcherName: string;
+    tempPhoto?: string;
+    sealPhoto?: string;
+    powerPhoto?: string;
+    actionTaken: string;
+  }) => AbnormalReport;
+  supplementAbnormalReport: (reportId: string, data: {
+    tempPhoto?: string;
+    sealPhoto?: string;
+    powerPhoto?: string;
+    note: string;
+  }) => void;
   updateAbnormalStatus: (reportId: string, status: AbnormalStatus, dispatcherRemark?: string) => void;
   getAbnormalReport: (reportId: string) => AbnormalReport | undefined;
   addCheckIn: (taskId: string, type: 'transload' | 'supervision_warehouse', location: {
@@ -250,6 +267,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         type: 'checkin',
         title: checkIn.type === 'transload' ? '换装点签到' : '监管仓签到',
         description: checkIn.locationName,
+        relatedId: checkIn.id,
+        relatedType: 'checkin',
         createdAt: checkIn.createdAt,
       });
     });
@@ -264,6 +283,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           description: `${record.temperature.toFixed(1)}°C · ${record.powerConnected ? '已接电' : '未接电'}`,
           temperature: record.temperature,
           photoUrl: record.tempPhoto,
+          relatedId: record.id,
+          relatedType: 'temperature_record',
           createdAt: record.createdAt,
         });
       }
@@ -278,7 +299,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         description: report.actionTaken,
         temperature: report.temperature,
         photoUrl: report.tempPhoto,
+        relatedId: report.id,
+        relatedType: 'abnormal_report',
         createdAt: report.createdAt,
+      });
+
+      report.supplements.forEach(sup => {
+        events.push({
+          id: sup.id,
+          taskId,
+          type: 'supplement',
+          title: '补充资料',
+          description: sup.note,
+          createdAt: sup.createdAt,
+          relatedId: report.id,
+          relatedType: 'abnormal_report',
+        });
       });
 
       if (report.status === 'closed') {
@@ -288,6 +324,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           type: 'abnormal_resolved',
           title: '异常已关闭',
           description: report.dispatcherRemark || '温度恢复正常，异常已处理完毕',
+          relatedId: report.id,
+          relatedType: 'abnormal_report',
           createdAt: report.statusUpdatedAt,
         });
       }
@@ -348,6 +386,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       actionTaken: data.actionTaken,
       status: 'pending_confirmation',
       statusUpdatedAt: new Date().toISOString(),
+      supplements: [],
       createdAt: new Date().toISOString(),
     };
 
@@ -377,6 +416,87 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
 
     return report;
+  },
+
+  createAbnormalReportDirect: (data) => {
+    const task = get().tasks.find(t => t.id === data.taskId);
+    const { currentTaskId } = get();
+
+    const report: AbnormalReport = {
+      id: generateId('ABN'),
+      taskId: data.taskId,
+      recordId: '',
+      temperature: data.temperature,
+      targetTempMin: task?.targetTempMin ?? -22,
+      targetTempMax: task?.targetTempMax ?? -18,
+      batteryLevel: data.batteryLevel,
+      powerConnected: data.powerConnected,
+      dispatcherName: data.dispatcherName,
+      notifiedDispatcher: true,
+      notifiedAt: new Date().toISOString(),
+      tempPhoto: data.tempPhoto,
+      sealPhoto: data.sealPhoto,
+      powerPhoto: data.powerPhoto,
+      actionTaken: data.actionTaken,
+      status: 'pending_confirmation',
+      statusUpdatedAt: new Date().toISOString(),
+      supplements: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    set(state => {
+      const newReports = [report, ...state.abnormalReports];
+      persistAbnormalReports(newReports);
+
+      const newTasks = state.tasks.map(t =>
+        t.id === data.taskId
+          ? { ...t, abnormalReports: [...t.abnormalReports, report] }
+          : t
+      );
+      persistTasks(newTasks);
+
+      return {
+        abnormalReports: newReports,
+        tasks: newTasks,
+      };
+    });
+
+    return report;
+  },
+
+  supplementAbnormalReport: (reportId, data) => {
+    const entry: SupplementEntry = {
+      id: generateId('SUP'),
+      tempPhoto: data.tempPhoto,
+      sealPhoto: data.sealPhoto,
+      powerPhoto: data.powerPhoto,
+      note: data.note,
+      createdAt: new Date().toISOString(),
+    };
+
+    set(state => {
+      const newReports = state.abnormalReports.map(r =>
+        r.id === reportId
+          ? { ...r, supplements: [...r.supplements, entry], statusUpdatedAt: new Date().toISOString() }
+          : r
+      );
+      persistAbnormalReports(newReports);
+
+      const newTasks = state.tasks.map(task => ({
+        ...task,
+        abnormalReports: task.abnormalReports.map(r =>
+          r.id === reportId
+            ? { ...r, supplements: [...r.supplements, entry], statusUpdatedAt: new Date().toISOString() }
+            : r
+        ),
+      }));
+      persistTasks(newTasks);
+
+      return {
+        abnormalReports: newReports,
+        tasks: newTasks,
+      };
+    });
   },
 
   updateAbnormalStatus: (reportId, status, dispatcherRemark) => {

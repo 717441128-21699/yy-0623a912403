@@ -26,7 +26,8 @@ function TemperaturePage() {
     getCurrentTask, 
     getTaskRecords, 
     addTemperatureRecord,
-    liveTemperature
+    liveTemperature,
+    getAbnormalReport
   } = useAppStore();
   const currentTask = getCurrentTask();
   const records = currentTaskId ? getTaskRecords(currentTaskId) : [];
@@ -37,7 +38,6 @@ function TemperaturePage() {
   const [showHistory, setShowHistory] = useState(true);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [showAbnormalFlow, setShowAbnormalFlow] = useState(false);
-  const [abnormalRecordForReport, setAbnormalRecordForReport] = useState<TemperatureRecord | null>(null);
   const [selectedReport, setSelectedReport] = useState<AbnormalReport | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -71,22 +71,22 @@ function TemperaturePage() {
 
     if (newRecord?.isAbnormal && newRecord.status !== 'temp_abnormal_reported') {
       setTimeout(() => {
-        setAbnormalRecordForReport(newRecord);
         setShowAbnormalFlow(true);
       }, 800);
     }
   };
 
-  const handleManualReportAbnormal = () => {
-    if (latestAbnormalRecord) {
-      setAbnormalRecordForReport(latestAbnormalRecord);
-      setShowAbnormalFlow(true);
-    }
+  const handleDirectReport = () => {
+    setShowAbnormalFlow(true);
   };
 
-  const handleAbnormalCompleted = () => {
+  const handleAbnormalCompleted = (reportId: string) => {
     setShowAbnormalFlow(false);
-    setAbnormalRecordForReport(null);
+    const report = getAbnormalReport(reportId);
+    if (report) {
+      setSelectedReport(report);
+      setSheetOpen(true);
+    }
   };
 
   const handleViewAbnormalReport = (report: AbnormalReport) => {
@@ -100,9 +100,9 @@ function TemperaturePage() {
   return (
     <PageContainer>
       <AnimatePresence>
-        {showAbnormalFlow && abnormalRecordForReport && (
+        {showAbnormalFlow && (
           <AbnormalReportFlow
-            record={abnormalRecordForReport}
+            record={latestAbnormalRecord}
             onClose={() => setShowAbnormalFlow(false)}
             onCompleted={handleAbnormalCompleted}
           />
@@ -165,7 +165,7 @@ function TemperaturePage() {
                   </p>
                 </div>
                 <button
-                  onClick={handleManualReportAbnormal}
+                  onClick={handleDirectReport}
                   className={classNames(
                     'flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors',
                     isCurrentTempAbnormal
@@ -307,8 +307,7 @@ function TemperaturePage() {
                 <div className="px-5 pb-5">
                   <RecordTimeline 
                     records={records.slice(0, 6)} 
-                    onReportAbnormal={(record) => {
-                      setAbnormalRecordForReport(record);
+                    onReportAbnormal={() => {
                       setShowAbnormalFlow(true);
                     }}
                     onViewAbnormalReport={handleViewAbnormalReport}

@@ -13,15 +13,15 @@ import type { TemperatureRecord } from '../../types';
 import { getTempZoneType, TEMP_ZONE_LABELS, ABNORMAL_TIPS_BY_ZONE, ABNORMAL_STATUS_LABELS } from '../../types';
 
 interface AbnormalReportFlowProps {
-  record: TemperatureRecord;
+  record?: TemperatureRecord | null;
   onClose: () => void;
-  onCompleted: () => void;
+  onCompleted: (reportId: string) => void;
 }
 
 type Step = 'warning' | 'call' | 'photos' | 'remark' | 'confirm';
 
 function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlowProps) {
-  const { createAbnormalReport, getCurrentTask } = useAppStore();
+  const { createAbnormalReport, createAbnormalReportDirect, getCurrentTask, liveTemperature, batteryLevel, powerConnected } = useAppStore();
   const currentTask = getCurrentTask();
   
   const [step, setStep] = useState<Step>('warning');
@@ -31,6 +31,10 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
   const [actionTaken, setActionTaken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [createdReportId, setCreatedReportId] = useState<string | null>(null);
+
+  const displayTemp = record?.temperature ?? liveTemperature;
+  const displayBattery = record?.batteryLevel ?? batteryLevel;
+  const displayPower = record?.powerConnected ?? powerConnected;
 
   const tempZone = useMemo(() => {
     if (!currentTask) return 'frozen';
@@ -50,23 +54,41 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
 
     await new Promise(r => setTimeout(r, 800));
 
-    const report = createAbnormalReport({
-      recordId: record.id,
-      taskId: currentTask.id,
-      dispatcherName: dispatcherName || dispatcher.name,
-      tempPhoto: photos.tempPhoto,
-      sealPhoto: photos.sealPhoto,
-      powerPhoto: photos.powerPhoto,
-      actionTaken: actionTaken.trim(),
-    });
+    let reportId: string;
 
-    setCreatedReportId(report.id);
+    if (record) {
+      const report = createAbnormalReport({
+        recordId: record.id,
+        taskId: currentTask.id,
+        dispatcherName: dispatcherName || dispatcher.name,
+        tempPhoto: photos.tempPhoto,
+        sealPhoto: photos.sealPhoto,
+        powerPhoto: photos.powerPhoto,
+        actionTaken: actionTaken.trim(),
+      });
+      reportId = report.id;
+    } else {
+      const report = createAbnormalReportDirect({
+        taskId: currentTask.id,
+        temperature: liveTemperature,
+        batteryLevel,
+        powerConnected,
+        dispatcherName: dispatcherName || dispatcher.name,
+        tempPhoto: photos.tempPhoto,
+        sealPhoto: photos.sealPhoto,
+        powerPhoto: photos.powerPhoto,
+        actionTaken: actionTaken.trim(),
+      });
+      reportId = report.id;
+    }
+
+    setCreatedReportId(reportId);
     setStep('confirm');
     setSubmitting(false);
     
     setTimeout(() => {
-      onCompleted();
-    }, 2000);
+      onCompleted(reportId);
+    }, 1500);
   };
 
   const steps: { key: Step; label: string; icon: typeof AlertTriangle }[] = [
@@ -159,7 +181,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                     {abnormalTips.title}
                   </h3>
                   <p className="text-sm text-ink-gray text-center leading-relaxed">
-                    当前温度 <span className="font-bold text-danger-red temp-digit text-base">{record.temperature.toFixed(1)}°C</span> 已超出目标温区
+                    当前温度 <span className="font-bold text-danger-red temp-digit text-base">{displayTemp.toFixed(1)}°C</span> 已超出目标温区
                     <br />
                     请立即按照以下流程进行异常上报
                   </p>
@@ -182,7 +204,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                     <div className="bg-gray-50 rounded-xl p-3">
                       <p className="text-xs text-ink-gray mb-1">异常温度</p>
                       <p className="text-xl font-bold text-danger-red temp-digit">
-                        {record.temperature.toFixed(1)}°C
+                        {displayTemp.toFixed(1)}°C
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
@@ -196,7 +218,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                         <Battery className="w-3 h-3" /> 电池电量
                       </p>
                       <p className="text-lg font-semibold text-ink-dark temp-digit">
-                        {Math.round(record.batteryLevel)}%
+                        {Math.round(displayBattery)}%
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
@@ -204,7 +226,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                         <Zap className="w-3 h-3" /> 外接电源
                       </p>
                       <p className="text-lg font-semibold text-ink-dark">
-                        {record.powerConnected ? '已连接' : '未连接'}
+                        {displayPower ? '已连接' : '未连接'}
                       </p>
                     </div>
                   </div>
@@ -518,7 +540,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                       <div className="flex justify-between mt-2">
                         <span className="text-ink-gray">异常温度</span>
                         <span className="text-danger-red font-semibold temp-digit">
-                          {record.temperature.toFixed(1)}°C
+                          {displayTemp.toFixed(1)}°C
                         </span>
                       </div>
                     </div>

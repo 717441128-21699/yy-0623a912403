@@ -5,7 +5,7 @@ import {
   AlertTriangle, CircleCheck, CircleDot, Ban, AlertCircle,
   ThermometerSun, Clock, FileText
 } from 'lucide-react';
-import type { Task, AbnormalReport } from '../../types';
+import type { Task, AbnormalReport, StageEvent } from '../../types';
 import { TEMP_STATUS_LABELS, TASK_STAGE_LABELS, ABNORMAL_STATUS_LABELS, ABNORMAL_STATUS_COLORS } from '../../types';
 import ProgressTracker from './ProgressTracker';
 import StageTimeline from './StageTimeline';
@@ -21,7 +21,7 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport }: TaskCardProps) {
-  const { addCheckIn, getTaskRecords, getTaskSummary, getStageTimeline, getTaskAbnormalReports } = useAppStore();
+  const { addCheckIn, getTaskRecords, getTaskSummary, getStageTimeline, getTaskAbnormalReports, getAbnormalReport } = useAppStore();
   const { getLocation, loading: geoLoading } = useGeolocation();
   const [signingType, setSigningType] = useState<'transload' | 'supervision_warehouse' | null>(null);
   const [signSuccess, setSignSuccess] = useState<string | null>(null);
@@ -292,7 +292,15 @@ function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport }: TaskCard
               <Clock className="w-4 h-4 text-ice" />
               任务阶段时间线
             </h4>
-            <StageTimeline events={getStageTimeline(task.id)} />
+            <StageTimeline 
+              events={getStageTimeline(task.id)} 
+              onEventClick={(event: StageEvent) => {
+                if (event.relatedType === 'abnormal_report' && event.relatedId) {
+                  const report = getAbnormalReport(event.relatedId);
+                  if (report) onViewAbnormalReport?.(report);
+                }
+              }}
+            />
           </div>
 
           {getTaskAbnormalReports(task.id).length > 0 && (

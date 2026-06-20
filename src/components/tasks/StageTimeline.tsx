@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { 
   Clock, MapPin, Thermometer, AlertTriangle, CheckCircle2,
-  Play, Package, Ship, Truck, Home
+  Play, Package, Ship, Truck, Home, Eye, Plus, ChevronRight
 } from 'lucide-react';
 import type { StageEvent, TaskStage } from '../../types';
 import { TASK_STAGE_LABELS } from '../../types';
@@ -9,6 +9,7 @@ import { formatDateTime, formatRelativeTime, classNames } from '../../utils';
 
 interface StageTimelineProps {
   events: StageEvent[];
+  onEventClick?: (event: StageEvent) => void;
 }
 
 const stageIcons: Record<TaskStage, any> = {
@@ -19,15 +20,16 @@ const stageIcons: Record<TaskStage, any> = {
   delivered: Home,
 };
 
-const eventTypeConfig: Record<StageEvent['type'], { icon: any; color: string; bgColor: string }> = {
-  stage_start: { icon: Play, color: 'text-ice', bgColor: 'bg-ice/15' },
-  checkin: { icon: MapPin, color: 'text-safe-green', bgColor: 'bg-safe-green/15' },
-  temperature_record: { icon: Thermometer, color: 'text-cold-deep', bgColor: 'bg-cold-deep/10' },
-  abnormal_report: { icon: AlertTriangle, color: 'text-danger-red', bgColor: 'bg-danger-red/15' },
-  abnormal_resolved: { icon: CheckCircle2, color: 'text-safe-green', bgColor: 'bg-safe-green/15' },
+const eventTypeConfig: Record<StageEvent['type'], { icon: any; color: string; bgColor: string; dotColor: string }> = {
+  stage_start: { icon: Play, color: 'text-ice', bgColor: 'bg-ice/15', dotColor: 'bg-ice' },
+  checkin: { icon: MapPin, color: 'text-safe-green', bgColor: 'bg-safe-green/15', dotColor: 'bg-safe-green' },
+  temperature_record: { icon: Thermometer, color: 'text-cold-deep', bgColor: 'bg-cold-deep/10', dotColor: 'bg-cold-deep' },
+  abnormal_report: { icon: AlertTriangle, color: 'text-danger-red', bgColor: 'bg-danger-red/15', dotColor: 'bg-danger-red' },
+  abnormal_resolved: { icon: CheckCircle2, color: 'text-safe-green', bgColor: 'bg-safe-green/15', dotColor: 'bg-safe-green' },
+  supplement: { icon: Plus, color: 'text-ice', bgColor: 'bg-ice/10', dotColor: 'bg-ice' },
 };
 
-function StageTimeline({ events }: StageTimelineProps) {
+function StageTimeline({ events, onEventClick }: StageTimelineProps) {
   if (events.length === 0) {
     return (
       <div className="text-center py-8 text-ink-light">
@@ -45,8 +47,8 @@ function StageTimeline({ events }: StageTimelineProps) {
           const EventIcon = event.stage && event.type === 'stage_start'
             ? stageIcons[event.stage]
             : config.icon;
-          const isFirst = idx === 0;
           const isLast = idx === events.length - 1;
+          const isClickable = event.relatedId && event.relatedType && onEventClick;
 
           return (
             <motion.div
@@ -54,7 +56,11 @@ function StageTimeline({ events }: StageTimelineProps) {
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.05, duration: 0.3 }}
-              className="relative pl-14 pb-5"
+              className={classNames(
+                'relative pl-14 pb-5',
+                isClickable && 'cursor-pointer'
+              )}
+              onClick={() => isClickable && onEventClick?.(event)}
             >
               {!isLast && (
                 <div className="absolute left-[22px] top-10 bottom-0 w-px bg-gray-100" />
@@ -67,10 +73,16 @@ function StageTimeline({ events }: StageTimelineProps) {
                 <EventIcon className={classNames('w-5 h-5', config.color)} />
               </div>
 
-              <div className="pt-1">
+              <div className={classNames(
+                'pt-1 rounded-xl transition-colors',
+                isClickable && 'hover:bg-gray-50 -mx-2 px-2'
+              )}>
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <h4 className="text-sm font-semibold text-ink-dark leading-snug">
+                  <h4 className="text-sm font-semibold text-ink-dark leading-snug flex items-center gap-1.5">
                     {event.title}
+                    {isClickable && (
+                      <ChevronRight className="w-3.5 h-3.5 text-ink-light" />
+                    )}
                   </h4>
                   <span className="text-[10px] text-ink-light flex-shrink-0 temp-digit whitespace-nowrap">
                     {formatRelativeTime(event.createdAt)}
@@ -93,9 +105,18 @@ function StageTimeline({ events }: StageTimelineProps) {
                     </span>
                   </div>
                 )}
-                <p className="text-[10px] text-ink-light mt-1">
-                  {formatDateTime(event.createdAt)}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-[10px] text-ink-light">
+                    {formatDateTime(event.createdAt)}
+                  </p>
+                  {isClickable && (
+                    <span className="text-[10px] text-ice font-semibold flex items-center gap-0.5">
+                      <Eye className="w-3 h-3" />
+                      {event.relatedType === 'abnormal_report' ? '查看处置单' :
+                       event.relatedType === 'temperature_record' ? '查看打卡' : '查看详情'}
+                    </span>
+                  )}
+                </div>
               </div>
             </motion.div>
           );

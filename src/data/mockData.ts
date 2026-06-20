@@ -24,9 +24,10 @@ export const mockAbnormalReports: AbnormalReport[] = [
     notifiedDispatcher: true,
     notifiedAt: new Date(now - 30 * 60 * 1000).toISOString(),
     actionTaken: '已接通外接电源，冷机运行正常，观察温度回升中。预计10分钟内恢复到正常范围。',
-    status: 'dispatcher_confirmed',
-    statusUpdatedAt: new Date(now - 20 * 60 * 1000).toISOString(),
-    dispatcherRemark: '已联系现场协调员安排快速查验，请保持通讯畅通',
+    status: 'additional_info_requested',
+    statusUpdatedAt: new Date(now - 15 * 60 * 1000).toISOString(),
+    dispatcherRemark: '请补拍冷机运行状态照片和当前温度表',
+    supplements: [],
     createdAt: new Date(now - 30 * 60 * 1000).toISOString(),
   },
 ];

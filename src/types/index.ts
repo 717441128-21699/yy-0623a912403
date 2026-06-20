@@ -17,6 +17,15 @@ export type AbnormalStatus =
 
 export type TempZoneType = 'frozen' | 'chilled' | 'ambient';
 
+export interface SupplementEntry {
+  id: string;
+  tempPhoto?: string;
+  sealPhoto?: string;
+  powerPhoto?: string;
+  note: string;
+  createdAt: string;
+}
+
 export interface AbnormalReport {
   id: string;
   taskId: string;
@@ -36,18 +45,21 @@ export interface AbnormalReport {
   status: AbnormalStatus;
   statusUpdatedAt: string;
   dispatcherRemark?: string;
+  supplements: SupplementEntry[];
   createdAt: string;
 }
 
 export interface StageEvent {
   id: string;
   taskId: string;
-  type: 'stage_start' | 'checkin' | 'temperature_record' | 'abnormal_report' | 'abnormal_resolved';
+  type: 'stage_start' | 'checkin' | 'temperature_record' | 'abnormal_report' | 'abnormal_resolved' | 'supplement';
   stage?: TaskStage;
   title: string;
   description: string;
   temperature?: number;
   photoUrl?: string;
+  relatedId?: string;
+  relatedType?: 'temperature_record' | 'abnormal_report' | 'checkin';
   createdAt: string;
 }
 
