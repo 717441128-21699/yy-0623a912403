@@ -1,20 +1,32 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Check, Loader2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Check, Loader2, FileText, ChevronDown, ChevronUp, AlertTriangle, PhoneCall } from 'lucide-react';
 import PageContainer from '@/components/layout/PageContainer';
 import TemperatureDisplay from '@/components/temperature/TemperatureDisplay';
 import DeviceStatusCard from '@/components/temperature/DeviceStatusCard';
 import PhotoUpload, { PhotoUploadData } from '@/components/temperature/PhotoUpload';
 import StatusSelector from '@/components/temperature/StatusSelector';
 import RecordTimeline from '@/components/temperature/RecordTimeline';
+import AbnormalReportFlow from '@/components/temperature/AbnormalReportFlow';
 import { useAppStore } from '@/store/useAppStore';
-import type { TempStatus } from '@/types';
-import { TEMP_STATUS_LABELS } from '@/types';
+import type { TempStatus, TemperatureRecord } from '@/types';
+import { TEMP_STATUS_LABELS, TEMP_STATUS_META } from '@/types';
+import { classNames } from '@/utils';
 
 type SubmitState = 'idle' | 'submitting' | 'success';
 
+function isTempAbnormal(temp: number, targetMin: number, targetMax: number): boolean {
+  return temp < targetMin || temp > targetMax;
+}
+
 function TemperaturePage() {
-  const { currentTaskId, getCurrentTask, getTaskRecords, addTemperatureRecord } = useAppStore();
+  const { 
+    currentTaskId, 
+    getCurrentTask, 
+    getTaskRecords, 
+    addTemperatureRecord,
+    liveTemperature
+  } = useAppStore();
   const currentTask = getCurrentTask();
   const records = currentTaskId ? getTaskRecords(currentTaskId) : [];
 
@@ -23,6 +35,18 @@ function TemperaturePage() {
   const [remark, setRemark] = useState('');
   const [showHistory, setShowHistory] = useState(true);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
+  const [showAbnormalFlow, setShowAbnormalFlow] = useState(false);
+  const [abnormalRecordForReport, setAbnormalRecordForReport] = useState<TemperatureRecord | null>(null);
+
+  const latestAbnormalRecord = useMemo(() => {
+    return records.find(r => r.isAbnormal && r.status !== 'temp_abnormal_reported');
+  }, [records]);
+
+  const isCurrentTempAbnormal = currentTask && isTempAbnormal(
+    liveTemperature,
+    currentTask.targetTempMin,
+    currentTask.targetTempMax
+  );
 
   const handleSubmit = async () => {
     if (submitState !== 'idle') return;
@@ -30,7 +54,7 @@ function TemperaturePage() {
 
     await new Promise(resolve => setTimeout(resolve, 900));
 
-    addTemperatureRecord({
+    const newRecord = addTemperatureRecord({
       status: selectedStatus,
       ...photos,
       remark: remark.trim() || undefined,
@@ -41,12 +65,42 @@ function TemperaturePage() {
     setRemark('');
 
     setTimeout(() => setSubmitState('idle'), 2200);
+
+    if (newRecord?.isAbnormal && newRecord.status !== 'temp_abnormal_reported') {
+      setTimeout(() => {
+        setAbnormalRecordForReport(newRecord);
+        setShowAbnormalFlow(true);
+      }, 800);
+    }
+  };
+
+  const handleManualReportAbnormal = () => {
+    if (latestAbnormalRecord) {
+      setAbnormalRecordForReport(latestAbnormalRecord);
+      setShowAbnormalFlow(true);
+    }
+  };
+
+  const handleAbnormalCompleted = () => {
+    setShowAbnormalFlow(false);
+    setAbnormalRecordForReport(null);
   };
 
   const statusLabel = TEMP_STATUS_LABELS[selectedStatus];
+  const statusMeta = TEMP_STATUS_META[selectedStatus];
 
   return (
     <PageContainer>
+      <AnimatePresence>
+        {showAbnormalFlow && abnormalRecordForReport && (
+          <AbnormalReportFlow
+            record={abnormalRecordForReport}
+            onClose={() => setShowAbnormalFlow(false)}
+            onCompleted={handleAbnormalCompleted}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="bg-gradient-to-b from-cold-deeper via-cold-deep to-transparent pt-12 pb-8 px-5 text-white">
         <div className="flex items-center justify-between">
           <div>
@@ -66,6 +120,59 @@ function TemperaturePage() {
       </div>
 
       <div className="px-4 -mt-2 space-y-4">
+        <AnimatePresence>
+          {(isCurrentTempAbnormal || latestAbnormalRecord) && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={classNames(
+                'relative overflow-hidden rounded-2xl p-4 border-2',
+                isCurrentTempAbnormal
+                  ? 'bg-gradient-to-r from-danger-red/15 to-warn-orange/10 border-danger-red/40'
+                  : 'bg-gradient-to-r from-warn-orange/15 to-warn-orange/5 border-warn-orange/40'
+              )}
+            >
+              <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-danger-red/10 blur-2xl -translate-y-1/2 translate-x-1/2" />
+              
+              <div className="relative flex items-start gap-3">
+                <div className={classNames(
+                  'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                  isCurrentTempAbnormal ? 'bg-danger-red text-white' : 'bg-warn-orange text-white'
+                )}>
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className={classNames(
+                    'text-sm font-bold',
+                    isCurrentTempAbnormal ? 'text-danger-red' : 'text-warn-orange'
+                  )}>
+                    {isCurrentTempAbnormal ? '⚠️ 当前温度异常' : '📋 有待处理的异常记录'}
+                  </h4>
+                  <p className="text-xs text-ink-dark mt-1">
+                    {isCurrentTempAbnormal 
+                      ? `当前 ${liveTemperature.toFixed(1)}°C 超出目标温区 ${currentTask?.targetTempMin}°C ~ ${currentTask?.targetTempMax}°C`
+                      : `最近一次打卡温度异常，共 ${records.filter(r => r.isAbnormal).length} 条异常记录`
+                    }
+                  </p>
+                </div>
+                <button
+                  onClick={handleManualReportAbnormal}
+                  className={classNames(
+                    'flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors',
+                    isCurrentTempAbnormal
+                      ? 'bg-danger-red text-white hover:bg-danger-red/90'
+                      : 'bg-warn-orange text-white hover:bg-warn-orange/90'
+                  )}
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  上报
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <TemperatureDisplay />
         <DeviceStatusCard />
 
@@ -107,7 +214,10 @@ function TemperaturePage() {
             whileTap={{ scale: submitState === 'idle' ? 0.98 : 1 }}
             onClick={handleSubmit}
             disabled={submitState !== 'idle'}
-            className="btn-primary relative overflow-hidden"
+            className={classNames(
+              'btn-primary relative overflow-hidden',
+              statusMeta.isAbnormal && 'ring-2 ring-danger-red ring-offset-2'
+            )}
           >
             <AnimatePresence mode="wait">
               {submitState === 'submitting' && (
@@ -144,6 +254,11 @@ function TemperaturePage() {
                 >
                   <Send className="w-5 h-5" />
                   <span>提交打卡 · {statusLabel}</span>
+                  {statusMeta.isAbnormal && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded bg-white/20 text-[10px]">
+                      异常
+                    </span>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -159,6 +274,11 @@ function TemperaturePage() {
               <FileText className="w-4 h-4 text-ice" />
               今日打卡历史
               <span className="text-xs font-normal text-ink-light">({records.length})</span>
+              {records.some(r => r.isAbnormal) && (
+                <span className="ml-auto px-2 py-0.5 rounded-full bg-danger-red/15 text-danger-red text-[10px] font-bold">
+                  {records.filter(r => r.isAbnormal).length} 条异常
+                </span>
+              )}
             </h3>
             {showHistory ? (
               <ChevronUp className="w-5 h-5 text-ink-light" />
@@ -177,7 +297,10 @@ function TemperaturePage() {
                 className="overflow-hidden"
               >
                 <div className="px-5 pb-5">
-                  <RecordTimeline records={records.slice(0, 6)} />
+                  <RecordTimeline records={records.slice(0, 6)} onReportAbnormal={(record) => {
+                    setAbnormalRecordForReport(record);
+                    setShowAbnormalFlow(true);
+                  }} />
                 </div>
               </motion.div>
             )}

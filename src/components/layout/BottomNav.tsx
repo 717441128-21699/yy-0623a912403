@@ -8,7 +8,7 @@ function BottomNav() {
   const currentTask = getCurrentTask();
   
   const tempStatus = currentTask
-    ? getTempStatusColor(liveTemperature, currentTask.tempMin, currentTask.tempMax)
+    ? getTempStatusColor(liveTemperature, currentTask.targetTempMin, currentTask.targetTempMax)
     : 'safe';
 
   const navItems = [

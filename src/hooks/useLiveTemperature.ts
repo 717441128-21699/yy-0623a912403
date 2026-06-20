@@ -19,9 +19,9 @@ export function useLiveTemperature(autoUpdate: boolean = true) {
 
   const tempStatus = currentTask
     ? (() => {
-        const { tempMin, tempMax } = currentTask;
-        if (liveTemperature < tempMin - 2 || liveTemperature > tempMax + 2) return 'danger' as const;
-        if (liveTemperature < tempMin || liveTemperature > tempMax) return 'warn' as const;
+        const { targetTempMin, targetTempMax } = currentTask;
+        if (liveTemperature < targetTempMin - 2 || liveTemperature > targetTempMax + 2) return 'danger' as const;
+        if (liveTemperature < targetTempMin || liveTemperature > targetTempMax) return 'warn' as const;
         return 'safe' as const;
       })()
     : 'safe' as const;
@@ -33,7 +33,7 @@ export function useLiveTemperature(autoUpdate: boolean = true) {
     lastDoorOpen,
     tempStatus,
     manualUpdate,
-    targetMin: currentTask?.tempMin,
-    targetMax: currentTask?.tempMax,
+    targetMin: currentTask?.targetTempMin,
+    targetMax: currentTask?.targetTempMax,
   };
 }

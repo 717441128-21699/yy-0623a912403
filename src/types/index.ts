@@ -6,14 +6,23 @@ export type TempStatus =
   | 'power_connected' 
   | 'door_open_inspection' 
   | 'temp_abnormal' 
-  | 'normal_transit';
+  | 'normal_transit'
+  | 'temp_abnormal_reported';
+
+export interface AbnormalInfo {
+  notifiedDispatcher: boolean;
+  dispatcherName?: string;
+  photosSupplemented: boolean;
+  actionTaken: string;
+  reportedAt: string;
+}
 
 export interface Task {
   id: string;
   cargoName: string;
   tempRange: string;
-  tempMin: number;
-  tempMax: number;
+  targetTempMin: number;
+  targetTempMax: number;
   sealNumber: string;
   targetPort: string;
   contactName: string;
@@ -35,6 +44,8 @@ export interface TemperatureRecord {
   sealPhoto?: string;
   powerPhoto?: string;
   remark?: string;
+  isAbnormal?: boolean;
+  abnormalInfo?: AbnormalInfo;
   createdAt: string;
 }
 
@@ -78,6 +89,17 @@ export const TEMP_STATUS_LABELS: Record<TempStatus, string> = {
   door_open_inspection: '开门查验中',
   temp_abnormal: '温度异常',
   normal_transit: '正常运输',
+  temp_abnormal_reported: '异常已上报',
+};
+
+export const TEMP_STATUS_META: Record<TempStatus, { isAbnormal: boolean; priority: number }> = {
+  waiting_inspection: { isAbnormal: false, priority: 0 },
+  ice_refilled: { isAbnormal: false, priority: 0 },
+  power_connected: { isAbnormal: false, priority: 0 },
+  door_open_inspection: { isAbnormal: false, priority: 1 },
+  temp_abnormal: { isAbnormal: true, priority: 2 },
+  normal_transit: { isAbnormal: false, priority: 0 },
+  temp_abnormal_reported: { isAbnormal: true, priority: 2 },
 };
 
 export const TASK_STAGE_LABELS: Record<TaskStage, string> = {
@@ -89,3 +111,11 @@ export const TASK_STAGE_LABELS: Record<TaskStage, string> = {
 };
 
 export const STAGE_ORDER: TaskStage[] = ['pickup', 'transit', 'port', 'transload', 'delivered'];
+
+export const TASK_STAGE_TO_PORT_STAGE: Record<TaskStage, PortStage> = {
+  pickup: 'prepare',
+  transit: 'queue',
+  port: 'queue',
+  transload: 'transload',
+  delivered: 'queue',
+};
