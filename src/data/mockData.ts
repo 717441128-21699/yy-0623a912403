@@ -28,6 +28,24 @@ export const mockAbnormalReports: AbnormalReport[] = [
     statusUpdatedAt: new Date(now - 15 * 60 * 1000).toISOString(),
     dispatcherRemark: '请补拍冷机运行状态照片和当前温度表',
     supplements: [],
+    conversationLog: [
+      {
+        id: 'MSG-001',
+        role: 'driver',
+        actorName: '张建国（司机）',
+        content: '已接通外接电源，冷机运行正常，观察温度回升中。预计10分钟内恢复到正常范围。',
+        statusChange: 'pending_confirmation',
+        createdAt: new Date(now - 30 * 60 * 1000).toISOString(),
+      },
+      {
+        id: 'MSG-002',
+        role: 'dispatcher',
+        actorName: '刘调度',
+        content: '已收到异常上报，正在协调口岸现场。请补拍冷机运行状态照片和当前温度表，方便进一步判断。',
+        statusChange: 'additional_info_requested',
+        createdAt: new Date(now - 15 * 60 * 1000).toISOString(),
+      },
+    ],
     createdAt: new Date(now - 30 * 60 * 1000).toISOString(),
   },
 ];

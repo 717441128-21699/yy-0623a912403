@@ -4,15 +4,15 @@ import {
   Play, Package, Ship, Truck, Home, Eye, Plus, ChevronRight
 } from 'lucide-react';
 import type { StageEvent, TaskStage } from '../../types';
-import { TASK_STAGE_LABELS } from '../../types';
 import { formatDateTime, formatRelativeTime, classNames } from '../../utils';
+import type { LucideIcon } from 'lucide-react';
 
 interface StageTimelineProps {
   events: StageEvent[];
   onEventClick?: (event: StageEvent) => void;
 }
 
-const stageIcons: Record<TaskStage, any> = {
+const stageIcons: Record<TaskStage, LucideIcon> = {
   pickup: Package,
   transit: Truck,
   port: Ship,
@@ -20,7 +20,7 @@ const stageIcons: Record<TaskStage, any> = {
   delivered: Home,
 };
 
-const eventTypeConfig: Record<StageEvent['type'], { icon: any; color: string; bgColor: string; dotColor: string }> = {
+const eventTypeConfig: Record<StageEvent['type'], { icon: LucideIcon; color: string; bgColor: string; dotColor: string }> = {
   stage_start: { icon: Play, color: 'text-ice', bgColor: 'bg-ice/15', dotColor: 'bg-ice' },
   checkin: { icon: MapPin, color: 'text-safe-green', bgColor: 'bg-safe-green/15', dotColor: 'bg-safe-green' },
   temperature_record: { icon: Thermometer, color: 'text-cold-deep', bgColor: 'bg-cold-deep/10', dotColor: 'bg-cold-deep' },

@@ -17,6 +17,8 @@ export type AbnormalStatus =
 
 export type TempZoneType = 'frozen' | 'chilled' | 'ambient';
 
+export type ConversationRole = 'driver' | 'dispatcher';
+
 export interface SupplementEntry {
   id: string;
   tempPhoto?: string;
@@ -26,10 +28,22 @@ export interface SupplementEntry {
   createdAt: string;
 }
 
+export interface ConversationEntry {
+  id: string;
+  role: ConversationRole;
+  actorName: string;
+  content: string;
+  tempPhoto?: string;
+  sealPhoto?: string;
+  powerPhoto?: string;
+  statusChange?: AbnormalStatus;
+  createdAt: string;
+}
+
 export interface AbnormalReport {
   id: string;
   taskId: string;
-  recordId: string;
+  recordId?: string;
   temperature: number;
   targetTempMin: number;
   targetTempMax: number;
@@ -46,6 +60,7 @@ export interface AbnormalReport {
   statusUpdatedAt: string;
   dispatcherRemark?: string;
   supplements: SupplementEntry[];
+  conversationLog: ConversationEntry[];
   createdAt: string;
 }
 

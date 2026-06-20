@@ -11,7 +11,7 @@ export function useGeolocation() {
   const [error, setError] = useState<string | null>(null);
 
   const getLocation = useCallback((): Promise<GeolocationResult> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       setLoading(true);
       setError(null);
 

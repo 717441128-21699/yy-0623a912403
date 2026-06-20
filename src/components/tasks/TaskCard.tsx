@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Thermometer, Tag, Ship, User, Phone, MapPin, Check, Loader2, 
   AlertTriangle, CircleCheck, CircleDot, Ban, AlertCircle,
-  ThermometerSun, Clock, FileText
+  ThermometerSun, Clock
 } from 'lucide-react';
 import type { Task, AbnormalReport, StageEvent } from '../../types';
 import { TEMP_STATUS_LABELS, TASK_STAGE_LABELS, ABNORMAL_STATUS_LABELS, ABNORMAL_STATUS_COLORS } from '../../types';
@@ -18,11 +18,12 @@ interface TaskCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onViewAbnormalReport?: (report: AbnormalReport) => void;
+  onEventClick?: (event: StageEvent) => void;
 }
 
-function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport }: TaskCardProps) {
-  const { addCheckIn, getTaskRecords, getTaskSummary, getStageTimeline, getTaskAbnormalReports, getAbnormalReport } = useAppStore();
-  const { getLocation, loading: geoLoading } = useGeolocation();
+function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport, onEventClick }: TaskCardProps) {
+  const { addCheckIn, getTaskRecords, getTaskSummary, getStageTimeline, getTaskAbnormalReports } = useAppStore();
+  const { getLocation } = useGeolocation();
   const [signingType, setSigningType] = useState<'transload' | 'supervision_warehouse' | null>(null);
   const [signSuccess, setSignSuccess] = useState<string | null>(null);
 
@@ -294,12 +295,7 @@ function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport }: TaskCard
             </h4>
             <StageTimeline 
               events={getStageTimeline(task.id)} 
-              onEventClick={(event: StageEvent) => {
-                if (event.relatedType === 'abnormal_report' && event.relatedId) {
-                  const report = getAbnormalReport(event.relatedId);
-                  if (report) onViewAbnormalReport?.(report);
-                }
-              }}
+              onEventClick={onEventClick}
             />
           </div>
 

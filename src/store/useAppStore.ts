@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Task, TemperatureRecord, Driver, TempStatus, CheckIn, AbnormalReport, AbnormalStatus, StageEvent, TaskStage, SupplementEntry } from '../types';
+import type { Task, TemperatureRecord, Driver, TempStatus, CheckIn, AbnormalReport, AbnormalStatus, StageEvent, TaskStage, SupplementEntry, ConversationEntry } from '../types';
 import { STAGE_ORDER, TASK_STAGE_LABELS, TEMP_STATUS_LABELS } from '../types';
 import { mockDriver, mockTasks, mockTemperatureRecords, mockAbnormalReports } from '../data/mockData';
 import { generateId, getTempStatusColor } from '../utils';
@@ -37,6 +37,7 @@ interface AppState {
   getCurrentTask: () => Task | undefined;
   getTaskRecords: (taskId: string) => TemperatureRecord[];
   getTaskAbnormalReports: (taskId: string) => AbnormalReport[];
+  getAllAbnormalReports: (filter?: { status?: AbnormalStatus; taskId?: string }) => AbnormalReport[];
   getTaskSummary: (taskId: string) => {
     lastTemp: number | null;
     lastStatus: TempStatus | null;
@@ -85,6 +86,7 @@ interface AppState {
     note: string;
   }) => void;
   updateAbnormalStatus: (reportId: string, status: AbnormalStatus, dispatcherRemark?: string) => void;
+  addConversationEntry: (reportId: string, entry: Omit<ConversationEntry, 'id' | 'createdAt'>) => void;
   getAbnormalReport: (reportId: string) => AbnormalReport | undefined;
   addCheckIn: (taskId: string, type: 'transload' | 'supervision_warehouse', location: {
     latitude: number;
@@ -141,10 +143,49 @@ export const useAppStore = create<AppState>((set, get) => ({
       const storedCurrent = localStorage.getItem(STORAGE_KEYS.CURRENT_TASK);
       const storedLive = localStorage.getItem(STORAGE_KEYS.LIVE_DATA);
 
-      const mergedTasks = storedTasks ? JSON.parse(storedTasks) : mockTasks;
-      const mergedRecords = storedRecords ? JSON.parse(storedRecords) : mockTemperatureRecords;
-      const mergedAbnormal = storedAbnormal ? JSON.parse(storedAbnormal) : mockAbnormalReports;
+      let mergedTasks = storedTasks ? JSON.parse(storedTasks) : mockTasks;
+      let mergedRecords = storedRecords ? JSON.parse(storedRecords) : mockTemperatureRecords;
+      let mergedAbnormal = storedAbnormal ? JSON.parse(storedAbnormal) : mockAbnormalReports;
       const mergedCurrent = storedCurrent ? JSON.parse(storedCurrent) : initialTask?.id ?? null;
+
+      mergedAbnormal = mergedAbnormal.map((report: AbnormalReport) => ({
+        ...report,
+        supplements: report.supplements ?? [],
+        conversationLog: report.conversationLog ?? [
+          {
+            id: `msg-${report.id}`,
+            role: 'driver' as const,
+            actorName: '司机',
+            content: report.actionTaken,
+            tempPhoto: report.tempPhoto,
+            sealPhoto: report.sealPhoto,
+            powerPhoto: report.powerPhoto,
+            statusChange: report.status,
+            createdAt: report.createdAt,
+          },
+        ],
+      }));
+
+      mergedTasks = mergedTasks.map((task: Task) => ({
+        ...task,
+        abnormalReports: task.abnormalReports?.map((report: AbnormalReport) => ({
+          ...report,
+          supplements: report.supplements ?? [],
+          conversationLog: report.conversationLog ?? [
+            {
+              id: `msg-${report.id}`,
+              role: 'driver' as const,
+              actorName: '司机',
+              content: report.actionTaken,
+              tempPhoto: report.tempPhoto,
+              sealPhoto: report.sealPhoto,
+              powerPhoto: report.powerPhoto,
+              statusChange: report.status,
+              createdAt: report.createdAt,
+            },
+          ],
+        })) ?? [],
+      }));
 
       let liveData = {
         liveTemperature: -19.6,
@@ -194,6 +235,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       .abnormalReports
       .filter(r => r.taskId === taskId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  getAllAbnormalReports: (filter) => {
+    let reports = [...get().abnormalReports];
+    if (filter?.status) {
+      reports = reports.filter(r => r.status === filter.status);
+    }
+    if (filter?.taskId) {
+      reports = reports.filter(r => r.taskId === filter.taskId);
+    }
+    return reports.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   getTaskSummary: (taskId) => {
@@ -367,6 +419,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   createAbnormalReport: (data) => {
     const record = get().temperatureRecords.find(r => r.id === data.recordId);
     const task = get().tasks.find(t => t.id === data.taskId);
+    const now = new Date().toISOString();
 
     const report: AbnormalReport = {
       id: generateId('ABN'),
@@ -379,15 +432,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       powerConnected: record?.powerConnected ?? false,
       dispatcherName: data.dispatcherName,
       notifiedDispatcher: true,
-      notifiedAt: new Date().toISOString(),
+      notifiedAt: now,
       tempPhoto: data.tempPhoto,
       sealPhoto: data.sealPhoto,
       powerPhoto: data.powerPhoto,
       actionTaken: data.actionTaken,
       status: 'pending_confirmation',
-      statusUpdatedAt: new Date().toISOString(),
+      statusUpdatedAt: now,
       supplements: [],
-      createdAt: new Date().toISOString(),
+      conversationLog: [
+        {
+          id: generateId('MSG'),
+          role: 'driver',
+          actorName: '司机',
+          content: data.actionTaken,
+          tempPhoto: data.tempPhoto,
+          sealPhoto: data.sealPhoto,
+          powerPhoto: data.powerPhoto,
+          statusChange: 'pending_confirmation',
+          createdAt: now,
+        },
+      ],
+      createdAt: now,
     };
 
     set(state => {
@@ -420,12 +486,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   createAbnormalReportDirect: (data) => {
     const task = get().tasks.find(t => t.id === data.taskId);
-    const { currentTaskId } = get();
+    const now = new Date().toISOString();
 
     const report: AbnormalReport = {
       id: generateId('ABN'),
       taskId: data.taskId,
-      recordId: '',
+      recordId: undefined,
       temperature: data.temperature,
       targetTempMin: task?.targetTempMin ?? -22,
       targetTempMax: task?.targetTempMax ?? -18,
@@ -433,15 +499,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       powerConnected: data.powerConnected,
       dispatcherName: data.dispatcherName,
       notifiedDispatcher: true,
-      notifiedAt: new Date().toISOString(),
+      notifiedAt: now,
       tempPhoto: data.tempPhoto,
       sealPhoto: data.sealPhoto,
       powerPhoto: data.powerPhoto,
       actionTaken: data.actionTaken,
       status: 'pending_confirmation',
-      statusUpdatedAt: new Date().toISOString(),
+      statusUpdatedAt: now,
       supplements: [],
-      createdAt: new Date().toISOString(),
+      conversationLog: [
+        {
+          id: generateId('MSG'),
+          role: 'driver',
+          actorName: '司机',
+          content: data.actionTaken,
+          tempPhoto: data.tempPhoto,
+          sealPhoto: data.sealPhoto,
+          powerPhoto: data.powerPhoto,
+          statusChange: 'pending_confirmation',
+          createdAt: now,
+        },
+      ],
+      createdAt: now,
     };
 
     set(state => {
@@ -465,19 +544,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   supplementAbnormalReport: (reportId, data) => {
+    const now = new Date().toISOString();
     const entry: SupplementEntry = {
       id: generateId('SUP'),
       tempPhoto: data.tempPhoto,
       sealPhoto: data.sealPhoto,
       powerPhoto: data.powerPhoto,
       note: data.note,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+    };
+
+    const conversationEntry: ConversationEntry = {
+      id: generateId('MSG'),
+      role: 'driver',
+      actorName: '司机',
+      content: data.note,
+      tempPhoto: data.tempPhoto,
+      sealPhoto: data.sealPhoto,
+      powerPhoto: data.powerPhoto,
+      createdAt: now,
     };
 
     set(state => {
       const newReports = state.abnormalReports.map(r =>
         r.id === reportId
-          ? { ...r, supplements: [...r.supplements, entry], statusUpdatedAt: new Date().toISOString() }
+          ? { 
+              ...r, 
+              supplements: [...r.supplements, entry],
+              conversationLog: [...r.conversationLog, conversationEntry],
+              statusUpdatedAt: now,
+            }
           : r
       );
       persistAbnormalReports(newReports);
@@ -486,7 +582,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...task,
         abnormalReports: task.abnormalReports.map(r =>
           r.id === reportId
-            ? { ...r, supplements: [...r.supplements, entry], statusUpdatedAt: new Date().toISOString() }
+            ? { 
+                ...r, 
+                supplements: [...r.supplements, entry],
+                conversationLog: [...r.conversationLog, conversationEntry],
+                statusUpdatedAt: now,
+              }
             : r
         ),
       }));
@@ -500,14 +601,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   updateAbnormalStatus: (reportId, status, dispatcherRemark) => {
+    const now = new Date().toISOString();
+    const report = get().abnormalReports.find(r => r.id === reportId);
+    const dispatcherName = report?.dispatcherName || '调度';
+
+    const conversationEntry: ConversationEntry | null = dispatcherRemark
+      ? {
+          id: generateId('MSG'),
+          role: 'dispatcher',
+          actorName: dispatcherName,
+          content: dispatcherRemark,
+          statusChange: status,
+          createdAt: now,
+        }
+      : null;
+
     set(state => {
       const newReports = state.abnormalReports.map(r =>
         r.id === reportId
           ? {
               ...r,
               status,
-              statusUpdatedAt: new Date().toISOString(),
+              statusUpdatedAt: now,
               dispatcherRemark: dispatcherRemark ?? r.dispatcherRemark,
+              conversationLog: conversationEntry
+                ? [...r.conversationLog, conversationEntry]
+                : r.conversationLog,
             }
           : r
       );
@@ -520,9 +639,45 @@ export const useAppStore = create<AppState>((set, get) => ({
             ? {
                 ...r,
                 status,
-                statusUpdatedAt: new Date().toISOString(),
+                statusUpdatedAt: now,
                 dispatcherRemark: dispatcherRemark ?? r.dispatcherRemark,
+                conversationLog: conversationEntry
+                  ? [...r.conversationLog, conversationEntry]
+                  : r.conversationLog,
               }
+            : r
+        ),
+      }));
+      persistTasks(newTasks);
+
+      return {
+        abnormalReports: newReports,
+        tasks: newTasks,
+      };
+    });
+  },
+
+  addConversationEntry: (reportId, entry) => {
+    const now = new Date().toISOString();
+    const newEntry: ConversationEntry = {
+      ...entry,
+      id: generateId('MSG'),
+      createdAt: now,
+    };
+
+    set(state => {
+      const newReports = state.abnormalReports.map(r =>
+        r.id === reportId
+          ? { ...r, conversationLog: [...r.conversationLog, newEntry], statusUpdatedAt: now }
+          : r
+      );
+      persistAbnormalReports(newReports);
+
+      const newTasks = state.tasks.map(task => ({
+        ...task,
+        abnormalReports: task.abnormalReports.map(r =>
+          r.id === reportId
+            ? { ...r, conversationLog: [...r.conversationLog, newEntry], statusUpdatedAt: now }
             : r
         ),
       }));

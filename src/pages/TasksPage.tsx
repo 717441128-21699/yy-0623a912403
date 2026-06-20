@@ -3,13 +3,19 @@ import PageContainer from '@/components/layout/PageContainer';
 import TasksHeader from '@/components/tasks/TasksHeader';
 import TaskCard from '@/components/tasks/TaskCard';
 import AbnormalReportSheet from '@/components/temperature/AbnormalReportSheet';
+import AbnormalDashboard from '@/components/temperature/AbnormalDashboard';
+import EventDetailSheet from '@/components/common/EventDetailSheet';
 import { useAppStore } from '@/store/useAppStore';
-import type { AbnormalReport } from '@/types';
+import type { AbnormalReport, StageEvent } from '@/types';
 
 function TasksPage() {
-  const { tasks, currentTaskId, setCurrentTask } = useAppStore();
+  const { tasks, currentTaskId, setCurrentTask, getAbnormalReport } = useAppStore();
   const [selectedReport, setSelectedReport] = useState<AbnormalReport | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [detailType, setDetailType] = useState<'temperature_record' | 'checkin'>('temperature_record');
+  const [detailId, setDetailId] = useState('');
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const activeTasks = tasks.filter(t => t.stage !== 'delivered');
   const deliveredTasks = tasks.filter(t => t.stage === 'delivered');
@@ -19,9 +25,37 @@ function TasksPage() {
     setSheetOpen(true);
   };
 
+  const handleEventClick = (event: StageEvent) => {
+    if (!event.relatedId || !event.relatedType) return;
+    
+    if (event.relatedType === 'abnormal_report') {
+      const report = getAbnormalReport(event.relatedId);
+      if (report) {
+        setSelectedReport(report);
+        setSheetOpen(true);
+      }
+    } else if (event.relatedType === 'temperature_record') {
+      setDetailType('temperature_record');
+      setDetailId(event.relatedId);
+      setDetailOpen(true);
+    } else if (event.relatedType === 'checkin') {
+      setDetailType('checkin');
+      setDetailId(event.relatedId);
+      setDetailOpen(true);
+    }
+  };
+
+  const handleDashboardViewReport = (report: AbnormalReport) => {
+    setDashboardOpen(false);
+    setTimeout(() => {
+      setSelectedReport(report);
+      setSheetOpen(true);
+    }, 250);
+  };
+
   return (
     <PageContainer>
-      <TasksHeader />
+      <TasksHeader onOpenDashboard={() => setDashboardOpen(true)} />
 
       <div className="px-4 -mt-4 space-y-4 pb-6">
         {activeTasks.length > 0 && (
@@ -43,6 +77,7 @@ function TasksPage() {
                   isSelected={task.id === currentTaskId}
                   onSelect={() => setCurrentTask(task.id)}
                   onViewAbnormalReport={handleViewAbnormalReport}
+                  onEventClick={handleEventClick}
                 />
               ))}
             </div>
@@ -68,6 +103,7 @@ function TasksPage() {
                   isSelected={task.id === currentTaskId}
                   onSelect={() => setCurrentTask(task.id)}
                   onViewAbnormalReport={handleViewAbnormalReport}
+                  onEventClick={handleEventClick}
                 />
               ))}
             </div>
@@ -89,6 +125,19 @@ function TasksPage() {
         report={selectedReport}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
+      />
+
+      <AbnormalDashboard
+        open={dashboardOpen}
+        onClose={() => setDashboardOpen(false)}
+        onViewReport={handleDashboardViewReport}
+      />
+
+      <EventDetailSheet
+        type={detailType}
+        dataId={detailId}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
       />
     </PageContainer>
   );

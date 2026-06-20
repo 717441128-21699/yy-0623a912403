@@ -1,15 +1,15 @@
 import { ScrollText, Snowflake, Power, DoorOpen, AlertTriangle, Truck } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { TempStatus } from '../../types';
 import { TEMP_STATUS_LABELS } from '../../types';
 import { classNames } from '../../utils';
-import type { ComponentType } from 'react';
 
 interface StatusSelectorProps {
   selected: TempStatus;
   onChange: (status: TempStatus) => void;
 }
 
-const statusConfig: { value: TempStatus; Icon: ComponentType<any>; color: string }[] = [
+const statusConfig: { value: TempStatus; Icon: LucideIcon; color: string }[] = [
   { value: 'normal_transit', Icon: Truck, color: 'safe-green' },
   { value: 'waiting_inspection', Icon: ScrollText, color: 'cold-deep' },
   { value: 'ice_refilled', Icon: Snowflake, color: 'ice' },

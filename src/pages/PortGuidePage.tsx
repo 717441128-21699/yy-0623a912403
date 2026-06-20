@@ -6,7 +6,7 @@ import StageTabs from '@/components/port-guide/StageTabs';
 import StepGuide from '@/components/port-guide/StepGuide';
 import EmergencyContactCard from '@/components/port-guide/EmergencyContactCard';
 import type { PortStage, TempStatus } from '@/types';
-import { TASK_STAGE_TO_PORT_STAGE, TASK_STAGE_LABELS, TEMP_STATUS_LABELS } from '@/types';
+import { TASK_STAGE_TO_PORT_STAGE, TASK_STAGE_LABELS } from '@/types';
 import { mockPortSteps } from '@/data/mockData';
 import { useAppStore } from '@/store/useAppStore';
 import { classNames } from '@/utils';

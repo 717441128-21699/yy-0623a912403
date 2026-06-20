@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AlertTriangle, Phone, Camera, FileText, CheckCircle2, 
   ChevronRight, X, Image as ImageIcon, Headphones,
-  Thermometer, Zap, Battery, Snowflake
+  Zap, Battery, Snowflake
 } from 'lucide-react';
 import PhotoUpload, { PhotoUploadData } from './PhotoUpload';
 import { useAppStore } from '../../store/useAppStore';

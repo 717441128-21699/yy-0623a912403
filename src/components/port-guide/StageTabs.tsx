@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
-import type { ComponentType } from 'react';
 import type { PortStage } from '../../types';
 import { mockPortSteps } from '../../data/mockData';
 import { Clock, ClipboardList, DoorOpen, Truck, AlertTriangle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { classNames } from '../../utils';
 
 interface StageTabsProps {
@@ -10,7 +10,7 @@ interface StageTabsProps {
   onChange: (stage: PortStage) => void;
 }
 
-const iconMap: Record<string, ComponentType<any>> = {
+const iconMap: Record<string, LucideIcon> = {
   Clock,
   ClipboardList,
   DoorOpen,

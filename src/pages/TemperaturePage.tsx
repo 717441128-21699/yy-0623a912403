@@ -10,7 +10,7 @@ import RecordTimeline from '@/components/temperature/RecordTimeline';
 import AbnormalReportFlow from '@/components/temperature/AbnormalReportFlow';
 import AbnormalReportSheet from '@/components/temperature/AbnormalReportSheet';
 import { useAppStore } from '@/store/useAppStore';
-import type { TempStatus, TemperatureRecord, AbnormalReport } from '@/types';
+import type { TempStatus, AbnormalReport } from '@/types';
 import { TEMP_STATUS_LABELS, TEMP_STATUS_META } from '@/types';
 import { classNames } from '@/utils';
 

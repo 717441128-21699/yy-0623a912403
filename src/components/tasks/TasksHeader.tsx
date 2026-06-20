@@ -1,11 +1,18 @@
-import { Truck, MapPin } from 'lucide-react';
+import { Truck, MapPin, ClipboardList } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { getTodayDateString } from '../../utils';
+import type { AbnormalStatus } from '../../types';
 
-function TasksHeader() {
-  const { driver, tasks, currentTaskId } = useAppStore();
+interface TasksHeaderProps {
+  onOpenDashboard?: () => void;
+}
+
+function TasksHeader({ onOpenDashboard }: TasksHeaderProps) {
+  const { driver, tasks, currentTaskId, getAllAbnormalReports } = useAppStore();
   const activeTaskCount = tasks.filter(t => t.stage !== 'delivered').length;
   const currentTask = tasks.find(t => t.id === currentTaskId);
+  const pendingReports = getAllAbnormalReports({ status: 'pending_confirmation' as AbnormalStatus }).length;
+  const totalReports = getAllAbnormalReports().length;
 
   return (
     <div className="relative overflow-hidden">
@@ -43,6 +50,33 @@ function TasksHeader() {
             </p>
           </div>
         </div>
+
+        {onOpenDashboard && totalReports > 0 && (
+          <button
+            onClick={onOpenDashboard}
+            className="w-full mt-4 bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10 flex items-center gap-3 active:scale-[0.99] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-xl bg-ice/20 flex items-center justify-center flex-shrink-0">
+              <ClipboardList className="w-5 h-5 text-ice-light" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-bold text-white">异常处置看板</p>
+              <p className="text-xs text-white/60">
+                共 {totalReports} 条处置单
+                {pendingReports > 0 && (
+                  <span className="ml-2 text-warn-orange font-semibold">
+                    {pendingReports} 条待确认
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   );

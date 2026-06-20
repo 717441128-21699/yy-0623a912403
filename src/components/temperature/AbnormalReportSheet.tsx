@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, Thermometer, Battery, Zap, Phone, Clock, FileText, 
-  AlertTriangle, CheckCircle2, User, MessageSquare,
-  AlertCircle, CircleCheck, CircleDot, Camera, Send,
-  Shield, Plus
+  X, Battery, Zap, Phone, FileText, 
+  AlertTriangle, CheckCircle2, User, MessageCircle,
+  AlertCircle, CircleCheck, CircleDot, Shield, Plus,
+  Send
 } from 'lucide-react';
-import type { AbnormalReport, AbnormalStatus } from '../../types';
+import type { LucideIcon } from 'lucide-react';
+import type { AbnormalReport, AbnormalStatus, ConversationEntry } from '../../types';
 import { 
   ABNORMAL_STATUS_LABELS, ABNORMAL_STATUS_COLORS,
   TEMP_ZONE_LABELS, getTempZoneType 
@@ -22,7 +23,7 @@ interface AbnormalReportSheetProps {
   onClose: () => void;
 }
 
-const statusFlow: { status: AbnormalReport['status']; label: string; icon: any }[] = [
+const statusFlow: { status: AbnormalReport['status']; label: string; icon: LucideIcon }[] = [
   { status: 'pending_confirmation', label: '待调度确认', icon: AlertCircle },
   { status: 'dispatcher_confirmed', label: '调度已确认', icon: CircleCheck },
   { status: 'additional_info_requested', label: '要求补充资料', icon: AlertTriangle },
@@ -33,6 +34,7 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
   const { updateAbnormalStatus, supplementAbnormalReport } = useAppStore();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewPhotos, setPreviewPhotos] = useState<PhotoItem[]>([]);
   const [showSupplementForm, setShowSupplementForm] = useState(false);
   const [supplementPhotos, setSupplementPhotos] = useState<PhotoUploadData>({});
   const [supplementNote, setSupplementNote] = useState('');
@@ -45,18 +47,23 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
   const tempZoneType = getTempZoneType(report.targetTempMin, report.targetTempMax);
   const currentStatusIndex = statusFlow.findIndex(s => s.status === report.status);
 
-  const photos: PhotoItem[] = [];
-  if (report.tempPhoto) photos.push({ url: report.tempPhoto, label: '温度表照片' });
-  if (report.sealPhoto) photos.push({ url: report.sealPhoto, label: '铅封照片' });
-  if (report.powerPhoto) photos.push({ url: report.powerPhoto, label: '外接电源照片' });
+  const buildPhotos = (): PhotoItem[] => {
+    const photos: PhotoItem[] = [];
+    if (report.tempPhoto) photos.push({ url: report.tempPhoto, label: '初始-温度表' });
+    if (report.sealPhoto) photos.push({ url: report.sealPhoto, label: '初始-铅封' });
+    if (report.powerPhoto) photos.push({ url: report.powerPhoto, label: '初始-外接电源' });
+    report.supplements.forEach((sup, idx) => {
+      if (sup.tempPhoto) photos.push({ url: sup.tempPhoto, label: `补充${idx + 1}-温度表` });
+      if (sup.sealPhoto) photos.push({ url: sup.sealPhoto, label: `补充${idx + 1}-铅封` });
+      if (sup.powerPhoto) photos.push({ url: sup.powerPhoto, label: `补充${idx + 1}-外接电源` });
+    });
+    return photos;
+  };
 
-  report.supplements.forEach((sup, idx) => {
-    if (sup.tempPhoto) photos.push({ url: sup.tempPhoto, label: `补充${idx + 1}-温度表` });
-    if (sup.sealPhoto) photos.push({ url: sup.sealPhoto, label: `补充${idx + 1}-铅封` });
-    if (sup.powerPhoto) photos.push({ url: sup.powerPhoto, label: `补充${idx + 1}-外接电源` });
-  });
+  const allPhotos = buildPhotos();
 
-  const handlePhotoClick = (index: number) => {
+  const handlePhotoClick = (photos: PhotoItem[], index: number) => {
+    setPreviewPhotos(photos);
     setPreviewIndex(index);
     setPreviewOpen(true);
   };
@@ -94,19 +101,16 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
     }
   };
 
-  const getStatusDotColor = (status: AbnormalReport['status']) => {
-    const color = ABNORMAL_STATUS_COLORS[status];
-    switch (color) {
-      case 'warn-orange': return 'bg-warn-orange';
-      case 'ice': return 'bg-ice';
-      case 'danger-red': return 'bg-danger-red';
-      case 'safe-green': return 'bg-safe-green';
-      default: return 'bg-gray-300';
-    }
-  };
-
   const isNeedsSupplement = report.status === 'additional_info_requested';
   const isClosed = report.status === 'closed';
+
+  const conversationPhotos = (entry: ConversationEntry): PhotoItem[] => {
+    const items: PhotoItem[] = [];
+    if (entry.tempPhoto) items.push({ url: entry.tempPhoto, label: '温度表' });
+    if (entry.sealPhoto) items.push({ url: entry.sealPhoto, label: '铅封' });
+    if (entry.powerPhoto) items.push({ url: entry.powerPhoto, label: '外接电源' });
+    return items;
+  };
 
   return (
     <>
@@ -145,8 +149,8 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                 </div>
               </div>
 
-              <div className="overflow-y-auto pb-8">
-                <div className="px-5 py-4 space-y-5">
+              <div className="overflow-y-auto pb-6">
+                <div className="px-5 py-4 space-y-4">
                   <div className="bg-gradient-to-r from-danger-red/10 to-warn-orange/10 rounded-2xl p-4 border border-danger-red/20">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3">
@@ -185,6 +189,10 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                           {report.powerConnected ? '已接电' : '未接电'}
                         </span>
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="w-4 h-4 text-safe-green" />
+                        <span className="text-xs text-ink-gray">{report.dispatcherName}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -201,99 +209,66 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                         {ABNORMAL_STATUS_LABELS[report.status]}
                       </span>
                     </div>
-                    <div className="relative pl-2">
-                      <div className="absolute left-[11px] top-3 bottom-3 w-px bg-gray-100" />
-                      <div className="space-y-0">
-                        {statusFlow.map((step, idx) => {
-                          const isCompleted = idx <= currentStatusIndex;
-                          const isCurrent = idx === currentStatusIndex;
-                          const StepIcon = step.icon;
-                          return (
-                            <div key={step.status} className="relative flex items-start gap-3 py-2.5">
-                              <div className={classNames(
-                                'w-6 h-6 rounded-full flex items-center justify-center z-10 flex-shrink-0',
-                                isCompleted 
-                                  ? isCurrent 
-                                    ? `${getStatusDotColor(step.status)} shadow-lg` 
-                                    : 'bg-safe-green'
-                                  : 'bg-gray-200'
-                              )}>
-                                <StepIcon className={classNames(
-                                  'w-3.5 h-3.5',
-                                  isCompleted ? 'text-white' : 'text-ink-light'
-                                )} />
-                              </div>
-                              <div className="flex-1 min-w-0 pt-0.5">
-                                <p className={classNames(
-                                  'text-sm font-semibold',
-                                  isCompleted ? 'text-ink-dark' : 'text-ink-light'
-                                )}>
-                                  {step.label}
-                                </p>
-                                {isCurrent && (
-                                  <p className="text-xs text-ink-gray mt-0.5">
-                                    {formatDateTime(report.statusUpdatedAt)}
-                                  </p>
-                                )}
-                              </div>
+                    <div className="flex items-center justify-between px-1">
+                      {statusFlow.map((step, idx) => {
+                        const isCompleted = idx <= currentStatusIndex;
+                        const StepIcon = step.icon;
+                        return (
+                          <div key={step.status} className="flex flex-col items-center flex-1">
+                            <div className={classNames(
+                              'w-7 h-7 rounded-full flex items-center justify-center z-10 mb-1.5',
+                              isCompleted ? 'bg-safe-green' : 'bg-gray-200'
+                            )}>
+                              <StepIcon className={classNames(
+                                'w-3.5 h-3.5',
+                                isCompleted ? 'text-white' : 'text-ink-light'
+                              )} />
                             </div>
-                          );
-                        })}
-                      </div>
+                            <p className={classNames(
+                              'text-[10px] text-center leading-tight',
+                              isCompleted ? 'text-ink-dark font-semibold' : 'text-ink-light'
+                            )}>
+                              {step.label.replace('待调度', '待').replace('调度已', '')}
+                            </p>
+                            {idx < statusFlow.length - 1 && (
+                              <div className={classNames(
+                                'absolute top-3.5 h-0.5',
+                                isCompleted ? 'bg-safe-green' : 'bg-gray-200'
+                              )} style={{ display: 'none' }} />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                    <p className="text-[10px] text-ink-light text-center mt-2">
+                      状态更新：{formatDateTime(report.statusUpdatedAt)}
+                    </p>
                   </div>
 
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <h3 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
-                      <Phone className="w-4 h-4 text-ice" />
-                      联系调度
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-ice/15 flex items-center justify-center">
-                          <User className="w-5 h-5 text-cold-deep" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-ink-dark">
-                            {report.dispatcherName}
-                          </p>
-                          <p className="text-xs text-ink-gray">
-                            联系时间：{formatTime(report.notifiedAt)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className={classNames(
-                        'w-2 h-2 rounded-full',
-                        report.notifiedDispatcher ? 'bg-safe-green' : 'bg-ink-light'
-                      )} />
-                    </div>
-                  </div>
-
-                  {photos.length > 0 && (
+                  {allPhotos.length > 0 && (
                     <div>
                       <h3 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
                         <FileText className="w-4 h-4 text-ice" />
                         留证照片
                         <span className="text-xs font-normal text-ink-gray">
-                          （点击可放大查看）
+                          （共{allPhotos.length}张，点击放大）
                         </span>
                       </h3>
-                      <div className="grid grid-cols-3 gap-2">
-                        {photos.map((photo, idx) => (
+                      <div className="grid grid-cols-4 gap-2">
+                        {allPhotos.slice(0, 8).map((photo, idx) => (
                           <motion.button
                             key={idx}
                             whileTap={{ scale: 0.97 }}
-                            onClick={() => handlePhotoClick(idx)}
-                            className="aspect-[4/5] rounded-xl overflow-hidden relative group"
+                            onClick={() => handlePhotoClick(allPhotos, idx)}
+                            className="aspect-square rounded-lg overflow-hidden relative"
                           >
                             <img
                               src={photo.url}
                               alt={photo.label}
                               className="w-full h-full object-cover"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <span className="absolute bottom-1.5 left-1.5 text-white text-[10px] font-semibold">
-                              {photo.label}
+                            <span className="absolute bottom-0.5 left-0.5 text-white text-[9px] bg-black/50 px-1 rounded">
+                              {photo.label.split('-')[0]}
                             </span>
                           </motion.button>
                         ))}
@@ -301,75 +276,95 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                     </div>
                   )}
 
-                  <div className="bg-gray-50 rounded-2xl p-4">
+                  <div>
                     <h3 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
-                      <MessageSquare className="w-4 h-4 text-ice" />
-                      处理说明
+                      <MessageCircle className="w-4 h-4 text-ice" />
+                      沟通记录
                     </h3>
-                    <p className="text-sm text-ink-dark leading-relaxed bg-white p-3 rounded-xl border border-gray-100">
-                      {report.actionTaken}
-                    </p>
-                    <p className="text-xs text-ink-light mt-2 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" />
-                      上报时间：{formatDateTime(report.createdAt)}
-                    </p>
+                    <div className="bg-gray-50 rounded-2xl p-4 space-y-4">
+                      {report.conversationLog.map((entry, idx) => {
+                        const isDriver = entry.role === 'driver';
+                        const entryPhotos = conversationPhotos(entry);
+                        return (
+                          <motion.div
+                            key={entry.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={classNames(
+                              'flex gap-2',
+                              isDriver ? 'flex-row-reverse' : 'flex-row'
+                            )}
+                          >
+                            <div className={classNames(
+                              'w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center',
+                              isDriver ? 'bg-ice/20' : 'bg-cold-deep/15'
+                            )}>
+                              <User className={classNames(
+                                'w-4 h-4',
+                                isDriver ? 'text-ice' : 'text-cold-deep'
+                              )} />
+                            </div>
+                            <div className={classNames(
+                              'max-w-[75%] space-y-1.5',
+                              isDriver ? 'items-end' : 'items-start'
+                            )}>
+                              <div className={classNames(
+                                'flex items-center gap-1.5 text-[10px]',
+                                isDriver ? 'flex-row-reverse' : 'flex-row'
+                              )}>
+                                <span className="font-semibold text-ink-dark">
+                                  {entry.actorName}
+                                </span>
+                                <span className="text-ink-light">
+                                  {formatTime(entry.createdAt)}
+                                </span>
+                              </div>
+                              {entry.statusChange && (
+                                <div className={classNames(
+                                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold',
+                                  getStatusColorClass(entry.statusChange)
+                                )}>
+                                  状态变更：{ABNORMAL_STATUS_LABELS[entry.statusChange]}
+                                </div>
+                              )}
+                              <div className={classNames(
+                                'rounded-2xl px-3 py-2.5 text-sm leading-relaxed',
+                                isDriver
+                                  ? 'bg-ice/20 text-ink-dark rounded-tr-sm'
+                                  : 'bg-white text-ink-dark rounded-tl-sm border border-gray-100'
+                              )}>
+                                {entry.content}
+                              </div>
+                              {entryPhotos.length > 0 && (
+                                <div className={classNames(
+                                  'flex gap-1.5',
+                                  isDriver ? 'justify-end' : 'justify-start'
+                                )}>
+                                  {entryPhotos.map((photo, pIdx) => (
+                                    <button
+                                      key={pIdx}
+                                      onClick={() => {
+                                        const startIdx = allPhotos.findIndex(p => p.url === photo.url);
+                                        handlePhotoClick(allPhotos, startIdx >= 0 ? startIdx : 0);
+                                      }}
+                                      className="w-14 h-14 rounded-lg overflow-hidden border border-white shadow-sm"
+                                    >
+                                      <img
+                                        src={photo.url}
+                                        alt={photo.label}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
                   </div>
-
-                  {report.supplements.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
-                        <Plus className="w-4 h-4 text-ice" />
-                        补充资料
-                        <span className="text-xs font-normal text-ink-gray">
-                          {report.supplements.length} 次
-                        </span>
-                      </h3>
-                      <div className="space-y-3">
-                        {report.supplements.map((sup, idx) => (
-                          <div key={sup.id} className="bg-ice/5 rounded-xl p-3 border border-ice/10">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-bold text-cold-deep">
-                                第{idx + 1}次补充
-                              </span>
-                              <span className="text-[10px] text-ink-light temp-digit">
-                                {formatDateTime(sup.createdAt)}
-                              </span>
-                            </div>
-                            <p className="text-xs text-ink-dark leading-relaxed mb-2">
-                              {sup.note}
-                            </p>
-                            <div className="flex gap-1.5">
-                              {sup.tempPhoto && (
-                                <img src={sup.tempPhoto} alt="温度表" className="w-12 h-12 rounded-lg object-cover" />
-                              )}
-                              {sup.sealPhoto && (
-                                <img src={sup.sealPhoto} alt="铅封" className="w-12 h-12 rounded-lg object-cover" />
-                              )}
-                              {sup.powerPhoto && (
-                                <img src={sup.powerPhoto} alt="外接电源" className="w-12 h-12 rounded-lg object-cover" />
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {report.dispatcherRemark && (
-                    <div className="bg-cold-deep/5 rounded-2xl p-4 border border-cold-deep/10">
-                      <h3 className="text-sm font-bold text-cold-deep flex items-center gap-2 mb-3">
-                        <MessageSquare className="w-4 h-4" />
-                        调度回复
-                      </h3>
-                      <p className="text-sm text-ink-dark leading-relaxed bg-white p-3 rounded-xl border border-gray-100">
-                        {report.dispatcherRemark}
-                      </p>
-                      <p className="text-xs text-ink-light mt-2 flex items-center gap-1.5">
-                        <Clock className="w-3 h-3" />
-                        回复时间：{formatDateTime(report.statusUpdatedAt)}
-                      </p>
-                    </div>
-                  )}
 
                   {isNeedsSupplement && !showSupplementForm && (
                     <div className="bg-warn-orange/10 rounded-2xl p-4 border-2 border-warn-orange/30">
@@ -379,16 +374,11 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                           <h4 className="text-sm font-bold text-warn-orange mb-1">
                             调度要求补充资料
                           </h4>
-                          {report.dispatcherRemark && (
-                            <p className="text-xs text-ink-dark mb-3">
-                              {report.dispatcherRemark}
-                            </p>
-                          )}
                           <button
                             onClick={() => setShowSupplementForm(true)}
-                            className="w-full py-3 rounded-xl bg-warn-orange text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                            className="w-full mt-3 py-3 rounded-xl bg-warn-orange text-white text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                           >
-                            <Camera className="w-4 h-4" />
+                            <Plus className="w-4 h-4" />
                             立即补充资料
                           </button>
                         </div>
@@ -496,7 +486,7 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                               {report.status !== 'closed' && (
                                 <>
                                   <div>
-                                    <p className="text-xs text-ink-gray mb-1.5">调度回复（关闭时填写）</p>
+                                    <p className="text-xs text-ink-gray mb-1.5">调度回复内容</p>
                                     <textarea
                                       value={dispatcherRemark}
                                       onChange={(e) => setDispatcherRemark(e.target.value)}
@@ -509,7 +499,7 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
                                     onClick={() => handleDispatcherAction('closed')}
                                     className="w-full py-3 rounded-xl bg-gray-200 text-ink-dark text-sm font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
                                   >
-                                    <X className="w-4 h-4" />
+                                    <CheckCircle2 className="w-4 h-4" />
                                     关闭异常
                                   </button>
                                 </>
@@ -534,7 +524,7 @@ function AbnormalReportSheet({ report, open, onClose }: AbnormalReportSheetProps
       </AnimatePresence>
 
       <PhotoPreview
-        photos={photos}
+        photos={previewPhotos}
         initialIndex={previewIndex}
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
