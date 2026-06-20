@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(135deg, #F0F9FF 0%, #ECFEFF 50%, #F0FDFA 100%);
+  min-height: 100vh;
+}
+
+@layer components {
+  .card-base {
+    @apply bg-white rounded-2xl shadow-soft;
+  }
+
+  .btn-primary {
+    @apply w-full py-4 rounded-2xl font-semibold text-white
+           bg-gradient-to-r from-cold-deep via-cold-deep to-ice
+           shadow-lg active:scale-[0.98] transition-all duration-200
+           min-h-[56px] flex items-center justify-center gap-2;
+  }
+
+  .btn-ghost {
+    @apply w-full py-4 rounded-2xl font-semibold text-cold-deep
+           bg-ice/10 border-2 border-ice/30
+           active:scale-[0.98] transition-all duration-200
+           min-h-[56px] flex items-center justify-center gap-2;
+  }
+
+  .tab-active {
+    @apply text-cold-deep font-semibold relative after:absolute after:bottom-[-8px]
+           after:left-1/2 after:-translate-x-1/2 after:w-8 after:h-1
+           after:bg-gradient-to-r after:from-cold-deep after:to-ice after:rounded-full;
+  }
+
+  .status-pill {
+    @apply px-3 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1;
+  }
+
+  .scroll-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scroll-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .temp-digit {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .hairline-border {
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  }
+}
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow: 0 0 30px currentColor;
+  }
+}
