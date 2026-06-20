@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Thermometer, Tag, Ship, User, Phone, MapPin, Check, Loader2, 
   AlertTriangle, CircleCheck, CircleDot, Ban, AlertCircle,
-  ThermometerSun
+  ThermometerSun, Clock, FileText
 } from 'lucide-react';
-import type { Task } from '../../types';
-import { TEMP_STATUS_LABELS, TASK_STAGE_LABELS } from '../../types';
+import type { Task, AbnormalReport } from '../../types';
+import { TEMP_STATUS_LABELS, TASK_STAGE_LABELS, ABNORMAL_STATUS_LABELS, ABNORMAL_STATUS_COLORS } from '../../types';
 import ProgressTracker from './ProgressTracker';
+import StageTimeline from './StageTimeline';
 import { useAppStore } from '../../store/useAppStore';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { formatDateTime, formatRelativeTime, classNames, getTempStatusColor } from '../../utils';
@@ -16,10 +17,11 @@ interface TaskCardProps {
   task: Task;
   isSelected: boolean;
   onSelect: () => void;
+  onViewAbnormalReport?: (report: AbnormalReport) => void;
 }
 
-function TaskCard({ task, isSelected, onSelect }: TaskCardProps) {
-  const { addCheckIn, getTaskRecords, getTaskSummary } = useAppStore();
+function TaskCard({ task, isSelected, onSelect, onViewAbnormalReport }: TaskCardProps) {
+  const { addCheckIn, getTaskRecords, getTaskSummary, getStageTimeline, getTaskAbnormalReports } = useAppStore();
   const { getLocation, loading: geoLoading } = useGeolocation();
   const [signingType, setSigningType] = useState<'transload' | 'supervision_warehouse' | null>(null);
   const [signSuccess, setSignSuccess] = useState<string | null>(null);
@@ -96,11 +98,39 @@ function TaskCard({ task, isSelected, onSelect }: TaskCardProps) {
               </span>
             </div>
             {summary.hasAbnormal && (
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger-red/10">
-                <AlertTriangle className="w-3 h-3 text-danger-red" />
-                <span className="text-[10px] font-bold text-danger-red">
-                  {summary.abnormalCount}次异常
-                </span>
+              <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-danger-red/10">
+                  <AlertTriangle className="w-3 h-3 text-danger-red" />
+                  <span className="text-[10px] font-bold text-danger-red">
+                    {summary.abnormalCount}次异常
+                  </span>
+                </div>
+                {summary.pendingAbnormalCount > 0 && summary.abnormalStatus && (
+                  <div className={classNames(
+                    'flex items-center gap-1 px-2 py-0.5 rounded-full',
+                    ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'warn-orange' && 'bg-warn-orange/10',
+                    ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'ice' && 'bg-ice/15',
+                    ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'danger-red' && 'bg-danger-red/10',
+                    ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'safe-green' && 'bg-safe-green/10'
+                  )}>
+                    <AlertCircle className={classNames(
+                      'w-3 h-3',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'warn-orange' && 'text-warn-orange',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'ice' && 'text-cold-deep',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'danger-red' && 'text-danger-red',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'safe-green' && 'text-safe-green'
+                    )} />
+                    <span className={classNames(
+                      'text-[10px] font-bold',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'warn-orange' && 'text-warn-orange',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'ice' && 'text-cold-deep',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'danger-red' && 'text-danger-red',
+                      ABNORMAL_STATUS_COLORS[summary.abnormalStatus] === 'safe-green' && 'text-safe-green'
+                    )}>
+                      {ABNORMAL_STATUS_LABELS[summary.abnormalStatus]}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -256,9 +286,71 @@ function TaskCard({ task, isSelected, onSelect }: TaskCardProps) {
       </div>
 
       {isSelected && (
-        <div className="px-5 pb-5 pt-2 space-y-3 bg-gray-50/50 border-t border-gray-100">
+        <div className="px-5 pb-5 pt-2 space-y-4 bg-gray-50/50 border-t border-gray-100">
+          <div className="bg-white rounded-2xl p-4 border border-gray-100">
+            <h4 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-ice" />
+              任务阶段时间线
+            </h4>
+            <StageTimeline events={getStageTimeline(task.id)} />
+          </div>
+
+          {getTaskAbnormalReports(task.id).length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-gray-100">
+              <h4 className="text-sm font-bold text-ink-dark flex items-center gap-2 mb-3">
+                <AlertTriangle className="w-4 h-4 text-danger-red" />
+                异常处置记录
+                <span className="ml-auto text-xs font-normal text-ink-gray">
+                  {getTaskAbnormalReports(task.id).length} 条
+                </span>
+              </h4>
+              <div className="space-y-2">
+                {getTaskAbnormalReports(task.id).map(report => (
+                  <div 
+                    key={report.id} 
+                    className="flex items-center gap-3 bg-gray-50 rounded-xl p-3 border border-gray-100 cursor-pointer hover:bg-ice/5 transition-colors"
+                    onClick={() => onViewAbnormalReport?.(report)}
+                  >
+                    <div className={classNames(
+                      'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                      report.status === 'closed' ? 'bg-safe-green/15' : 'bg-warn-orange/15'
+                    )}>
+                      {report.status === 'closed' ? (
+                        <Check className="w-5 h-5 text-safe-green" />
+                      ) : (
+                        <AlertTriangle className="w-5 h-5 text-warn-orange" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-sm font-semibold text-ink-dark temp-digit">
+                          {report.temperature.toFixed(1)}°C
+                        </p>
+                        <span className={classNames(
+                          'status-pill text-[10px] font-semibold',
+                          ABNORMAL_STATUS_COLORS[report.status] === 'warn-orange' && 'bg-warn-orange/10 text-warn-orange',
+                          ABNORMAL_STATUS_COLORS[report.status] === 'ice' && 'bg-ice/15 text-cold-deep',
+                          ABNORMAL_STATUS_COLORS[report.status] === 'danger-red' && 'bg-danger-red/10 text-danger-red',
+                          ABNORMAL_STATUS_COLORS[report.status] === 'safe-green' && 'bg-safe-green/10 text-safe-green'
+                        )}>
+                          {ABNORMAL_STATUS_LABELS[report.status]}
+                        </span>
+                      </div>
+                      <p className="text-xs text-ink-gray truncate">
+                        {report.actionTaken}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-ink-light temp-digit flex-shrink-0">
+                      {formatRelativeTime(report.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {task.checkIns.length > 0 && (
-            <div className="space-y-2 py-2">
+            <div className="space-y-2 py-1">
               {task.checkIns.map(checkIn => (
                 <div key={checkIn.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-gray-100">
                   <div className="w-9 h-9 rounded-full bg-safe-green/15 flex items-center justify-center flex-shrink-0">
@@ -295,7 +387,7 @@ function TaskCard({ task, isSelected, onSelect }: TaskCardProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-1">
             <button
               disabled={!!signingType || summary.hasTransloadCheckIn}
               onClick={() => handleCheckIn('transload')}

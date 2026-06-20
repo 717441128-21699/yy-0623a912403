@@ -1,19 +1,29 @@
+import { useState } from 'react';
 import PageContainer from '@/components/layout/PageContainer';
 import TasksHeader from '@/components/tasks/TasksHeader';
 import TaskCard from '@/components/tasks/TaskCard';
+import AbnormalReportSheet from '@/components/temperature/AbnormalReportSheet';
 import { useAppStore } from '@/store/useAppStore';
+import type { AbnormalReport } from '@/types';
 
 function TasksPage() {
   const { tasks, currentTaskId, setCurrentTask } = useAppStore();
+  const [selectedReport, setSelectedReport] = useState<AbnormalReport | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const activeTasks = tasks.filter(t => t.stage !== 'delivered');
   const deliveredTasks = tasks.filter(t => t.stage === 'delivered');
+
+  const handleViewAbnormalReport = (report: AbnormalReport) => {
+    setSelectedReport(report);
+    setSheetOpen(true);
+  };
 
   return (
     <PageContainer>
       <TasksHeader />
 
-      <div className="px-4 -mt-4 space-y-4">
+      <div className="px-4 -mt-4 space-y-4 pb-6">
         {activeTasks.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3 px-1">
@@ -32,6 +42,7 @@ function TasksPage() {
                   task={task}
                   isSelected={task.id === currentTaskId}
                   onSelect={() => setCurrentTask(task.id)}
+                  onViewAbnormalReport={handleViewAbnormalReport}
                 />
               ))}
             </div>
@@ -56,6 +67,7 @@ function TasksPage() {
                   task={task}
                   isSelected={task.id === currentTaskId}
                   onSelect={() => setCurrentTask(task.id)}
+                  onViewAbnormalReport={handleViewAbnormalReport}
                 />
               ))}
             </div>
@@ -72,6 +84,12 @@ function TasksPage() {
           </div>
         )}
       </div>
+
+      <AbnormalReportSheet
+        report={selectedReport}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+      />
     </PageContainer>
   );
 }

@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AlertTriangle, Phone, Camera, FileText, CheckCircle2, 
-  ChevronRight, X, Image as ImageIcon, Headphones
+  ChevronRight, X, Image as ImageIcon, Headphones,
+  Thermometer, Zap, Battery, Snowflake
 } from 'lucide-react';
 import PhotoUpload, { PhotoUploadData } from './PhotoUpload';
 import { useAppStore } from '../../store/useAppStore';
 import { mockEmergencyContacts } from '../../data/mockData';
 import { classNames } from '../../utils';
-import type { AbnormalInfo, TemperatureRecord } from '../../types';
+import type { TemperatureRecord } from '../../types';
+import { getTempZoneType, TEMP_ZONE_LABELS, ABNORMAL_TIPS_BY_ZONE, ABNORMAL_STATUS_LABELS } from '../../types';
 
 interface AbnormalReportFlowProps {
   record: TemperatureRecord;
@@ -19,14 +21,23 @@ interface AbnormalReportFlowProps {
 type Step = 'warning' | 'call' | 'photos' | 'remark' | 'confirm';
 
 function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlowProps) {
-  const { reportAbnormal } = useAppStore();
+  const { createAbnormalReport, getCurrentTask } = useAppStore();
+  const currentTask = getCurrentTask();
+  
   const [step, setStep] = useState<Step>('warning');
   const [dispatcherContacted, setDispatcherContacted] = useState(false);
   const [dispatcherName, setDispatcherName] = useState('');
   const [photos, setPhotos] = useState<PhotoUploadData>({});
   const [actionTaken, setActionTaken] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [createdReportId, setCreatedReportId] = useState<string | null>(null);
 
+  const tempZone = useMemo(() => {
+    if (!currentTask) return 'frozen';
+    return getTempZoneType(currentTask.targetTempMin, currentTask.targetTempMax);
+  }, [currentTask]);
+
+  const abnormalTips = ABNORMAL_TIPS_BY_ZONE[tempZone];
   const dispatcher = mockEmergencyContacts[0];
   const hasPhotos = Object.keys(photos).length > 0;
   const canProceedToPhotos = dispatcherContacted;
@@ -34,25 +45,28 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
   const canSubmit = dispatcherContacted && hasPhotos && actionTaken.trim().length >= 8;
 
   const handleSubmit = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canSubmit || submitting || !currentTask) return;
     setSubmitting(true);
 
     await new Promise(r => setTimeout(r, 800));
 
-    const abnormalInfo: Omit<AbnormalInfo, 'reportedAt'> = {
-      notifiedDispatcher: true,
+    const report = createAbnormalReport({
+      recordId: record.id,
+      taskId: currentTask.id,
       dispatcherName: dispatcherName || dispatcher.name,
-      photosSupplemented: true,
+      tempPhoto: photos.tempPhoto,
+      sealPhoto: photos.sealPhoto,
+      powerPhoto: photos.powerPhoto,
       actionTaken: actionTaken.trim(),
-    };
+    });
 
-    reportAbnormal(record.id, abnormalInfo);
+    setCreatedReportId(report.id);
     setStep('confirm');
     setSubmitting(false);
     
     setTimeout(() => {
       onCompleted();
-    }, 1500);
+    }, 2000);
   };
 
   const steps: { key: Step; label: string; icon: typeof AlertTriangle }[] = [
@@ -142,7 +156,7 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                     <AlertTriangle className="w-8 h-8 text-danger-red" />
                   </div>
                   <h3 className="text-lg font-bold text-danger-red text-center mb-2">
-                    检测到温度异常
+                    {abnormalTips.title}
                   </h3>
                   <p className="text-sm text-ink-gray text-center leading-relaxed">
                     当前温度 <span className="font-bold text-danger-red temp-digit text-base">{record.temperature.toFixed(1)}°C</span> 已超出目标温区
@@ -152,6 +166,17 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                 </div>
 
                 <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={classNames(
+                      'px-2.5 py-1 rounded-full text-xs font-bold',
+                      tempZone === 'frozen' ? 'bg-cold-deep/10 text-cold-deep' :
+                      tempZone === 'chilled' ? 'bg-ice/20 text-ice' :
+                      'bg-gray-100 text-ink-dark'
+                    )}>
+                      <Snowflake className="w-3 h-3 inline mr-1" />
+                      {TEMP_ZONE_LABELS[tempZone]}货品
+                    </div>
+                  </div>
                   <h4 className="text-sm font-bold text-ink-dark">当前异常信息</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-50 rounded-xl p-3">
@@ -163,17 +188,21 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                     <div className="bg-gray-50 rounded-xl p-3">
                       <p className="text-xs text-ink-gray mb-1">目标温区</p>
                       <p className="text-lg font-semibold text-ink-dark temp-digit">
-                        {record.temperature > -18 ? '≤ -18°C' : '≥ -22°C'}
+                        {currentTask?.targetTempMin}°C ~ {currentTask?.targetTempMax}°C
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-xs text-ink-gray mb-1">电池电量</p>
+                      <p className="text-xs text-ink-gray mb-1 flex items-center gap-1">
+                        <Battery className="w-3 h-3" /> 电池电量
+                      </p>
                       <p className="text-lg font-semibold text-ink-dark temp-digit">
                         {Math.round(record.batteryLevel)}%
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-xs text-ink-gray mb-1">外接电源</p>
+                      <p className="text-xs text-ink-gray mb-1 flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> 外接电源
+                      </p>
                       <p className="text-lg font-semibold text-ink-dark">
                         {record.powerConnected ? '已连接' : '未连接'}
                       </p>
@@ -184,21 +213,15 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                 <div className="bg-warn-orange/10 rounded-xl p-4 border border-warn-orange/20">
                   <h4 className="text-sm font-bold text-warn-orange flex items-center gap-2 mb-2">
                     <AlertTriangle className="w-4 h-4" />
-                    重要提醒
+                    温区专属提醒
                   </h4>
                   <ul className="text-xs text-ink-dark space-y-1.5">
-                    <li className="flex items-start gap-2">
-                      <span className="text-warn-orange mt-0.5">•</span>
-                      <span><strong>严禁擅自移动车辆</strong>，必须先联系调度获取指令</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-warn-orange mt-0.5">•</span>
-                      <span>全程拍照留证，包括温度表、冷机、铅封</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-warn-orange mt-0.5">•</span>
-                      <span>详细记录已采取的处理措施，调度会根据情况支援</span>
-                    </li>
+                    {abnormalTips.tips.map((tip, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-warn-orange mt-0.5">•</span>
+                        <span>{tip}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
@@ -485,6 +508,20 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                         {actionTaken.length >= 8 ? '已填写' : `${actionTaken.length}/8 字`}
                       </span>
                     </div>
+                    <div className="pt-2 mt-2 border-t border-gray-200">
+                      <div className="flex justify-between">
+                        <span className="text-ink-gray">目标温区</span>
+                        <span className="text-ink-dark font-semibold temp-digit">
+                          {currentTask?.targetTempMin}°C ~ {currentTask?.targetTempMax}°C
+                        </span>
+                      </div>
+                      <div className="flex justify-between mt-2">
+                        <span className="text-ink-gray">异常温度</span>
+                        <span className="text-danger-red font-semibold temp-digit">
+                          {record.temperature.toFixed(1)}°C
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -539,11 +576,17 @@ function AbnormalReportFlow({ record, onClose, onCompleted }: AbnormalReportFlow
                 <h3 className="text-xl font-bold text-ink-dark mb-2">
                   异常上报成功
                 </h3>
-                <p className="text-sm text-ink-gray">
-                  调度已收到您的上报，会尽快安排处理
+                <p className="text-sm text-ink-gray mb-2">
+                  调度已收到您的上报，状态：
+                  <span className="text-warn-orange font-semibold">
+                    {ABNORMAL_STATUS_LABELS.pending_confirmation}
+                  </span>
                 </p>
-                <p className="text-xs text-ink-light mt-4">
-                  记录编号：{record.id}
+                <p className="text-xs text-ink-light">
+                  上报编号：{createdReportId}
+                </p>
+                <p className="text-xs text-ink-light mt-2">
+                  正在打开处置单...
                 </p>
               </motion.div>
             )}

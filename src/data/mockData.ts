@@ -1,4 +1,4 @@
-import type { Task, Driver, TemperatureRecord, PortStepData, ContactInfo } from '../types';
+import type { Task, Driver, TemperatureRecord, PortStepData, ContactInfo, AbnormalReport } from '../types';
 
 export const mockDriver: Driver = {
   id: 'DRV-2026-0881',
@@ -6,6 +6,30 @@ export const mockDriver: Driver = {
   phone: '138****6623',
   plateNumber: '粤Z·B728港',
 };
+
+const now = new Date('2026-06-21T10:45:00+08:00').getTime();
+const hourMs = 60 * 60 * 1000;
+
+export const mockAbnormalReports: AbnormalReport[] = [
+  {
+    id: 'ABN-001',
+    taskId: 'TASK-20260621-001',
+    recordId: 'REC-006',
+    temperature: -15.2,
+    targetTempMin: -22,
+    targetTempMax: -18,
+    batteryLevel: 82,
+    powerConnected: false,
+    dispatcherName: '刘调度',
+    notifiedDispatcher: true,
+    notifiedAt: new Date(now - 30 * 60 * 1000).toISOString(),
+    actionTaken: '已接通外接电源，冷机运行正常，观察温度回升中。预计10分钟内恢复到正常范围。',
+    status: 'dispatcher_confirmed',
+    statusUpdatedAt: new Date(now - 20 * 60 * 1000).toISOString(),
+    dispatcherRemark: '已联系现场协调员安排快速查验，请保持通讯畅通',
+    createdAt: new Date(now - 30 * 60 * 1000).toISOString(),
+  },
+];
 
 export const mockTasks: Task[] = [
   {
@@ -19,6 +43,7 @@ export const mockTasks: Task[] = [
     contactName: '李经理',
     contactPhone: '13928477615',
     stage: 'port',
+    stageStartedAt: new Date(now - 2 * hourMs).toISOString(),
     checkIns: [
       {
         id: 'CI-001',
@@ -30,6 +55,7 @@ export const mockTasks: Task[] = [
         createdAt: '2026-06-21T06:30:00+08:00',
       },
     ],
+    abnormalReports: mockAbnormalReports.filter(r => r.taskId === 'TASK-20260621-001'),
     createdAt: '2026-06-21T05:00:00+08:00',
   },
   {
@@ -43,15 +69,26 @@ export const mockTasks: Task[] = [
     contactName: '王主管',
     contactPhone: '13800138000',
     stage: 'transit',
+    stageStartedAt: new Date(now - 3 * hourMs).toISOString(),
     checkIns: [],
+    abnormalReports: [],
     createdAt: '2026-06-21T04:30:00+08:00',
   },
 ];
 
-const now = new Date('2026-06-21T10:45:00+08:00').getTime();
-const hourMs = 60 * 60 * 1000;
-
 export const mockTemperatureRecords: TemperatureRecord[] = [
+  {
+    id: 'REC-006',
+    taskId: 'TASK-20260621-001',
+    temperature: -15.2,
+    batteryLevel: 82,
+    powerConnected: false,
+    lastDoorOpen: '2026-06-21T06:35:00+08:00',
+    status: 'temp_abnormal_reported',
+    isAbnormal: true,
+    abnormalReportId: 'ABN-001',
+    createdAt: new Date(now - 30 * 60 * 1000).toISOString(),
+  },
   {
     id: 'REC-005',
     taskId: 'TASK-20260621-001',

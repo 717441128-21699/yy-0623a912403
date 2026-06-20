@@ -8,8 +8,9 @@ import PhotoUpload, { PhotoUploadData } from '@/components/temperature/PhotoUplo
 import StatusSelector from '@/components/temperature/StatusSelector';
 import RecordTimeline from '@/components/temperature/RecordTimeline';
 import AbnormalReportFlow from '@/components/temperature/AbnormalReportFlow';
+import AbnormalReportSheet from '@/components/temperature/AbnormalReportSheet';
 import { useAppStore } from '@/store/useAppStore';
-import type { TempStatus, TemperatureRecord } from '@/types';
+import type { TempStatus, TemperatureRecord, AbnormalReport } from '@/types';
 import { TEMP_STATUS_LABELS, TEMP_STATUS_META } from '@/types';
 import { classNames } from '@/utils';
 
@@ -37,6 +38,8 @@ function TemperaturePage() {
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [showAbnormalFlow, setShowAbnormalFlow] = useState(false);
   const [abnormalRecordForReport, setAbnormalRecordForReport] = useState<TemperatureRecord | null>(null);
+  const [selectedReport, setSelectedReport] = useState<AbnormalReport | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const latestAbnormalRecord = useMemo(() => {
     return records.find(r => r.isAbnormal && r.status !== 'temp_abnormal_reported');
@@ -86,6 +89,11 @@ function TemperaturePage() {
     setAbnormalRecordForReport(null);
   };
 
+  const handleViewAbnormalReport = (report: AbnormalReport) => {
+    setSelectedReport(report);
+    setSheetOpen(true);
+  };
+
   const statusLabel = TEMP_STATUS_LABELS[selectedStatus];
   const statusMeta = TEMP_STATUS_META[selectedStatus];
 
@@ -119,7 +127,7 @@ function TemperaturePage() {
         )}
       </div>
 
-      <div className="px-4 -mt-2 space-y-4">
+      <div className="px-4 -mt-2 space-y-4 pb-6">
         <AnimatePresence>
           {(isCurrentTempAbnormal || latestAbnormalRecord) && (
             <motion.div
@@ -297,16 +305,26 @@ function TemperaturePage() {
                 className="overflow-hidden"
               >
                 <div className="px-5 pb-5">
-                  <RecordTimeline records={records.slice(0, 6)} onReportAbnormal={(record) => {
-                    setAbnormalRecordForReport(record);
-                    setShowAbnormalFlow(true);
-                  }} />
+                  <RecordTimeline 
+                    records={records.slice(0, 6)} 
+                    onReportAbnormal={(record) => {
+                      setAbnormalRecordForReport(record);
+                      setShowAbnormalFlow(true);
+                    }}
+                    onViewAbnormalReport={handleViewAbnormalReport}
+                  />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
+
+      <AbnormalReportSheet
+        report={selectedReport}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+      />
     </PageContainer>
   );
 }
